@@ -19,12 +19,14 @@ import { isIgnorePP, isVirtual, MoveUseMode } from "#enums/move-use-mode";
 import { MysteryEncounterMode } from "#enums/mystery-encounter-mode";
 import { PokeballType } from "#enums/pokeball";
 import { UiMode } from "#enums/ui-mode";
+import { BattleActionType } from "../multiplayer/multiplayer-types";
 import type { PlayerPokemon } from "#field/pokemon";
 import { getMoveTargets } from "#moves/move-utils";
 import { FieldPhase } from "#phases/field-phase";
 import type { MoveTargetSet } from "#types/move-target-set";
 import type { TurnMove } from "#types/turn-move";
 import i18next from "i18next";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 export class CommandPhase extends FieldPhase {
   public readonly phaseName = "CommandPhase";
@@ -181,6 +183,12 @@ export class CommandPhase extends FieldPhase {
 
     if (globalScene.currentBattle.turnCommands[this.fieldIndex]?.skip) {
       this.end();
+      return;
+    }
+
+    // COOP：房主控制左侧槽位，客机控制右侧槽位；非本机槽位只接收队友指令。
+    if (multiplayerManager.coopManager.isActive && !this.ownsCoopSlot()) {
+      this.resolveCoopCommand();
       return;
     }
 
@@ -685,6 +693,98 @@ export class CommandPhase extends FieldPhase {
   }
 
   end() {
+    this.broadcastCoopCommand();
+    // PVP：本回合自己的指令定下来了，立刻广播给对手。
+    // 放在 end() 而不是 handleCommand()，是因为「被强制指令 / 跳过回合」这些
+    // 不经过 handleCommand 的路径也会走到这里，漏发一次两台机器就会互相干等。
+    this.broadcastPvpCommand();
     globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
+  }
+
+  private ownsCoopSlot(): boolean {
+    return this.fieldIndex === (multiplayerManager.isHost ? 0 : 1);
+  }
+
+  private broadcastCoopCommand(): void {
+    const coop = multiplayerManager.coopManager;
+    if (!coop.isActive || !this.ownsCoopSlot()) {
+      return;
+    }
+    const command = globalScene.currentBattle.turnCommands[this.fieldIndex];
+    const payload = {
+      turnNumber: globalScene.currentBattle.turn,
+      slotIndex: this.fieldIndex,
+      actionType: command?.command === Command.POKEMON
+        ? BattleActionType.SWITCH
+        : command?.command === Command.FIGHT
+          ? BattleActionType.MOVE
+          : BattleActionType.RUN,
+      ...(command?.command === Command.FIGHT && command.cursor !== undefined ? { moveIndex: command.cursor } : {}),
+      ...(command?.command === Command.POKEMON && command.cursor !== undefined
+        ? { switchPokemonIndex: command.cursor }
+        : {}),
+    };
+    coop.submitSlotAction(payload);
+  }
+
+  private resolveCoopCommand(): void {
+    const coop = multiplayerManager.coopManager;
+    const turn = globalScene.currentBattle.turn;
+    coop.awaitSlotAction(turn, this.fieldIndex).then(action => {
+      const pokemon = this.getPokemon();
+      if (!action || action.actionType === BattleActionType.RUN) {
+        globalScene.currentBattle.turnCommands[this.fieldIndex] = {
+          command: Command.FIGHT,
+          cursor: -1,
+          move: { move: MoveId.STRUGGLE, targets: getMoveTargets(pokemon, MoveId.STRUGGLE).targets, useMode: MoveUseMode.NORMAL },
+          skip: false,
+        };
+      } else if (action.actionType === BattleActionType.SWITCH) {
+        globalScene.currentBattle.turnCommands[this.fieldIndex] = {
+          command: Command.POKEMON,
+          cursor: action.switchPokemonIndex ?? -1,
+          args: [false],
+        };
+      } else {
+        const moveIndex = action.moveIndex ?? -1;
+        const moveId = pokemon.getMoveset()[moveIndex]?.moveId ?? MoveId.STRUGGLE;
+        globalScene.currentBattle.turnCommands[this.fieldIndex] = {
+          command: Command.FIGHT,
+          cursor: moveIndex,
+          move: { move: moveId, targets: getMoveTargets(pokemon, moveId).targets, useMode: MoveUseMode.NORMAL },
+        };
+      }
+      globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
+    });
+  }
+
+  /** PVP：把 turnCommands 里刚写好的本机指令翻译成跨机器通用的形式发出去 */
+  private broadcastPvpCommand(): void {
+    const pvp = multiplayerManager.pvpManager;
+    if (!pvp.isActive || pvp.matchOver) {
+      return;
+    }
+
+    const turnCommand = globalScene.currentBattle.turnCommands[this.fieldIndex];
+    const turn = globalScene.currentBattle.turn;
+
+    if (turnCommand?.command === Command.POKEMON) {
+      pvp.submitLocalCommand({ turn, kind: "SWITCH", switchSlot: turnCommand.cursor ?? -1 });
+      return;
+    }
+
+    if (turnCommand?.command === Command.FIGHT && turnCommand.move?.move) {
+      pvp.submitLocalCommand({
+        turn,
+        kind: "MOVE",
+        // ⚠️ 必须传招式 ID：挣扎（STRUGGLE）不在 moveset 里，只传下标对面会取到空。
+        moveId: turnCommand.move.move,
+        moveIndex: turnCommand.cursor ?? -1,
+      });
+      return;
+    }
+
+    // 道具 / 逃跑 / 未知指令：对面按「这回合什么都没干」处理
+    pvp.submitLocalCommand({ turn, kind: "SKIP" });
   }
 }

@@ -22,6 +22,7 @@ import { BerryPhase } from "#phases/berry-phase";
 import { CheckInterludePhase } from "#phases/check-interlude-phase";
 import { CheckStatusEffectPhase } from "#phases/check-status-effect-phase";
 import { CheckSwitchPhase } from "#phases/check-switch-phase";
+import { CoopBattleSetupPhase } from "#phases/coop-battle-setup-phase";
 import { CommandPhase } from "#phases/command-phase";
 import { CommonAnimPhase } from "#phases/common-anim-phase";
 import { DamageAnimPhase } from "#phases/damage-anim-phase";
@@ -78,6 +79,9 @@ import { PositionalTagPhase } from "#phases/positional-tag-phase";
 import { PostGameOverPhase } from "#phases/post-game-over-phase";
 import { PostSummonPhase } from "#phases/post-summon-phase";
 import { PostTurnStatusEffectPhase } from "#phases/post-turn-status-effect-phase";
+import { PvpPartySyncPhase } from "#phases/pvp-party-sync-phase";
+import { PvpRemoteSwitchPhase } from "#phases/pvp-remote-switch-phase";
+import { PvpTeamSetupPhase } from "#phases/pvp-team-setup-phase";
 import { QuietFormChangePhase } from "#phases/quiet-form-change-phase";
 import { ResetStatusPhase } from "#phases/reset-status-phase";
 import { ReturnPhase } from "#phases/return-phase";
@@ -131,6 +135,7 @@ const PHASES = Object.freeze({
   CheckInterludePhase,
   CheckStatusEffectPhase,
   CheckSwitchPhase,
+  CoopBattleSetupPhase,
   CommandPhase,
   CommonAnimPhase,
   DamageAnimPhase,
@@ -185,6 +190,9 @@ const PHASES = Object.freeze({
   PostGameOverPhase,
   PostSummonPhase,
   PostTurnStatusEffectPhase,
+  PvpPartySyncPhase,
+  PvpRemoteSwitchPhase,
+  PvpTeamSetupPhase,
   QuietFormChangePhase,
   ResetStatusPhase,
   ReturnPhase,

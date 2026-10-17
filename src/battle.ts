@@ -80,6 +80,10 @@ export class Battle {
   public lastMove: MoveId = MoveId.NONE;
   public battleSeed: string = randomString(16, true);
   private battleSeedState: string | null = null;
+  /** PVP：两边用同一套速度排序，不能按「我方在前、敌方在后」这种本机位置决定先后手。 */
+  public pvpLockstep = false;
+  /** PVP：本机玩家是不是房主。速度打平时用它做两边一致的次序。 */
+  public pvpHostIsPlayer = true;
   public moneyScattered = 0;
   // TODO: These trackers are only used for Sticky Web + Mirror Armor edge cases
   // and are abhorrently janky.
@@ -488,6 +492,11 @@ export class Battle {
    * @param min The minimum integer to pick, default `0`
    * @returns A random integer between {@linkcode min} and ({@linkcode min} + {@linkcode range} - 1)
    */
+  /** PVP 每回合开始时清掉上回合残留的随机状态，这一回合从 battleSeed + 回合数重新算。 */
+  resetPvpTurnSeed(): void {
+    this.battleSeedState = null;
+  }
+
   randSeedInt(range: number, min = 0): number {
     if (range <= 1) {
       return min;

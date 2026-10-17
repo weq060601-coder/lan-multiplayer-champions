@@ -54,6 +54,20 @@ function getPokemon(p: Pokemon | HasPokemon): Pokemon {
  * Sort an array of {@linkcode Pokemon} (or objects containing them) in speed order, without shuffling.
  * @param groupedPokemonList - A grouped array of objects to sort; will be mutated in place
  */
+/** 房主队伍用 0 起，客机队伍用 100 起。两台机器对同一只宝可梦算出同一个数。 */
+function pvpTieKey(pokemon: Pokemon): number {
+  const hostIsPlayer = globalScene.currentBattle?.pvpHostIsPlayer !== false;
+  const playerIndex = globalScene.getPlayerParty().findIndex(member => member === pokemon);
+  if (playerIndex >= 0) {
+    return hostIsPlayer ? playerIndex : 100 + playerIndex;
+  }
+  const enemyIndex = globalScene.getEnemyParty().findIndex(member => member === pokemon);
+  if (enemyIndex >= 0) {
+    return hostIsPlayer ? 100 + enemyIndex : enemyIndex;
+  }
+  return 999;
+}
+
 function sortBySpeed<T extends Pokemon | HasPokemon>(groupedPokemonList: T[][]): void {
   const { setOrder } = globalScene.turnCommandManager;
 
@@ -68,10 +82,14 @@ function sortBySpeed<T extends Pokemon | HasPokemon>(groupedPokemonList: T[][]):
   }
 
   groupedPokemonList.sort((a, b) => {
-    const aSpeed = getPokemon(a[0]).getEffectiveStat(Stat.SPD);
-    const bSpeed = getPokemon(b[0]).getEffectiveStat(Stat.SPD);
-
-    return bSpeed - aSpeed;
+    const aPokemon = getPokemon(a[0]);
+    const bPokemon = getPokemon(b[0]);
+    const speedDiff = bPokemon.getEffectiveStat(Stat.SPD) - aPokemon.getEffectiveStat(Stat.SPD);
+    if (speedDiff !== 0 || !globalScene.currentBattle?.pvpLockstep) {
+      return speedDiff;
+    }
+    // 速度相同就不能再看本机数组顺序，否则两边都会让「敌方」先手，打出相反的击倒。
+    return pvpTieKey(aPokemon) - pvpTieKey(bPokemon);
   });
 
   /** 'true' if Trick Room is on the field. */

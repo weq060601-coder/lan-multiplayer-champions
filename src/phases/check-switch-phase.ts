@@ -7,6 +7,7 @@ import { SwitchType } from "#enums/switch-type";
 import { UiMode } from "#enums/ui-mode";
 import { BattlePhase } from "#phases/battle-phase";
 import i18next from "i18next";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 export class CheckSwitchPhase extends BattlePhase {
   public readonly phaseName = "CheckSwitchPhase";
@@ -26,6 +27,15 @@ export class CheckSwitchPhase extends BattlePhase {
     const pokemon = globalScene.getPlayerField()[this.fieldIndex];
 
     // End this phase early...
+
+    // PVP：开局这个「要换宝可梦吗」必须跳过。
+    // 它换的是本机的首发，但这次交换不会广播给对手 ——
+    // 对面机器上「敌方首发」还是队伍第一只，两台机器立刻打成两场不同的仗。
+    // 简化版的规则就是：选队时排在第一位的那只就是首发，锁定。
+    if (multiplayerManager.pvpManager.isActive) {
+      this.end();
+      return;
+    }
 
     // ...if the user is playing in Set Mode
     if (settings.general.battleStyle === BattleStyle.SET) {

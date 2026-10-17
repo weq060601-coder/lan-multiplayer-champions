@@ -21,6 +21,7 @@ import { SpeciesId } from "#enums/species-id";
 import { TrainerSlot } from "#enums/trainer-slot";
 import { UiMode } from "#enums/ui-mode";
 import { EncounterPhaseEvent } from "#events/battle-scene";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 import type { Pokemon } from "#field/pokemon";
 import {
   BoostBugSpawnModifier,
@@ -68,6 +69,10 @@ export class EncounterPhase extends BattlePhase {
 
     const battle = globalScene.currentBattle;
 
+    // PVP：敌方队伍已经在 PvpPartySyncPhase 里用对手的真实队伍填好了。
+    // 下面有两处要靠它把守：① 不能再随机生成一次敌方队伍 ② 不能给敌方发随机持有物。
+    const isPvpBattle = multiplayerManager.pvpManager.isActive;
+
     // Generate and Init Mystery Encounter
     if (battle.isBattleMysteryEncounter() && !battle.mysteryEncounter) {
       globalScene.executeWithSeedOffset(() => {
@@ -106,7 +111,8 @@ export class EncounterPhase extends BattlePhase {
         // Skip enemy loading for MEs, those are loaded elsewhere
         return false;
       }
-      if (!this.loaded) {
+      // PVP：这里绝对不能再生成一次敌方队伍，否则会把对手的宝可梦覆盖成随机怪。
+      if (!this.loaded && !isPvpBattle) {
         if (battle.battleType === BattleType.TRAINER) {
           battle.enemyParty[e] = battle.trainer?.genPartyMember(e)!; // TODO:: is the bang correct here?
         } else {
@@ -270,7 +276,10 @@ export class EncounterPhase extends BattlePhase {
         return true;
       });
 
-      if (!this.loaded && battle.battleType !== BattleType.MYSTERY_ENCOUNTER) {
+      // PVP：绝对不能给敌方生成随机持有物。
+      // 对手那台机器上，他自己的宝可梦是刚选的初始怪、身上什么都没有；
+      // 本机这边却凭种子给它们发一堆道具，两边的伤害计算立刻对不上。
+      if (!this.loaded && battle.battleType !== BattleType.MYSTERY_ENCOUNTER && !isPvpBattle) {
         // generate modifiers for MEs, overriding prior ones as applicable
         regenerateModifierPoolThresholds(
           globalScene.getEnemyField(),
@@ -296,6 +305,14 @@ export class EncounterPhase extends BattlePhase {
           // Set weather and terrain before session gets saved
           this.trySetWeatherIfNewBiome();
           this.trySetTerrainIfNewBiome();
+          // LAN matches are transient sessions. Saving here persists the temporary
+          // room state (including the optional full-dex overlay) into the solo save.
+          if (multiplayerManager.isInRoom) {
+            globalScene.disableMenu = false;
+            this.doEncounter();
+            globalScene.resetSeed();
+            return;
+          }
           // Game syncs to server on waves X1 and X6 (As of 1.2.0)
           globalScene.gameData
             .saveAll(true, battle.waveIndex % 5 === 1 || (globalScene.lastSavePlayTime ?? 0) >= 300)

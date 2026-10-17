@@ -48,6 +48,7 @@ import { MoveId } from "#enums/move-id";
 import { MysteryEncounterMode } from "#enums/mystery-encounter-mode";
 import { MysteryEncounterTier } from "#enums/mystery-encounter-tier";
 import { MysteryEncounterType } from "#enums/mystery-encounter-type";
+import { multiplayerOverlayWidget } from "./ui/handlers/multiplayer-overlay-ui-handler";
 import { Nature } from "#enums/nature";
 import { PlayerGender } from "#enums/player-gender";
 import { PokeballType } from "#enums/pokeball";
@@ -626,6 +627,7 @@ export class BattleScene extends SceneBase {
     this.ui = new UI();
     this.uiContainer.add(this.ui);
     this.ui.setup();
+    multiplayerOverlayWidget.setup();
 
     this.phaseManager.toTitleScreen(true);
     this.phaseManager.shiftPhase();

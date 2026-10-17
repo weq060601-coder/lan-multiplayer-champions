@@ -28,6 +28,7 @@ import { awardRibbonsToSpeciesLine } from "#system/ribbon-methods";
 import { TrainerData } from "#system/trainer-data";
 import { trainerConfigs } from "#trainers/trainer-config";
 import type { SessionSaveData } from "#types/save-data";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 import { applyChallenges, isNuzlockeChallenge } from "#utils/challenge-utils";
 import { fixedInt, isLocalServerConnected } from "#utils/common";
 import { ValueHolder } from "#utils/value-holder";
@@ -49,6 +50,12 @@ export class GameOverPhase extends BattlePhase {
     super.start();
 
     globalScene.phaseManager.hideAbilityBar();
+
+    // PVP：自己整队倒完 = 本机输了。不写存档、不上传成绩、不走单人结算，直接回标题。
+    if (multiplayerManager.pvpManager.isActive) {
+      multiplayerManager.pvpManager.endMatch(this.isVictory, () => this.end());
+      return;
+    }
 
     // Failsafe if players somehow skip floor 200 in classic mode
     if (globalScene.gameMode.isClassic && globalScene.currentBattle.waveIndex > 200) {

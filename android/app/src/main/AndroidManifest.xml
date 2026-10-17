@@ -1,0 +1,64 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="org.apache.cordova, com.getcapacitor.android" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/AppTheme">
+
+        <!--
+            ⚠️ usesCleartextTraffic 是局域网联机的**硬性前提**，删掉就彻底连不上。
+
+            安卓 9（API 28）起，系统默认禁止明文流量，而本项目 targetSdkVersion = 35。
+            信令走的是 ws://<电脑局域网IP>:<端口>，属于明文 —— 不开这个开关，
+            连接会被**系统网络栈**拦掉，跟 IP 填得对不对毫无关系。
+            （曾经以为是「地址填错了」，白查了一轮。）
+
+            注意 Capacitor 那句 settings.setMixedContentMode(MIXED_CONTENT_ALWAYS_ALLOW)
+            只放开了 WebView 那一层，管不到系统这一层，两者是独立的两道闸。
+
+            为什么不用 network_security_config 只放开局域网：
+            它只能按域名或单个 IP 列白名单，写不了 192.168.0.0/16 这种网段，
+            而局域网 IP 是运行时才知道的，没法预先枚举。
+            实际暴露面：同一 Wi-Fi 下有人能中间人攻击房间码。局域网小游戏可接受。
+        -->
+
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+</manifest>

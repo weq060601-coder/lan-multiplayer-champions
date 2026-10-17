@@ -23,6 +23,8 @@ import { vouchers } from "#system/voucher";
 import type { OptionSelectConfig, OptionSelectItem } from "#types/ui-types";
 import { SaveSlotUiMode } from "#ui/save-slot-select-ui-handler";
 import { isLocalServerConnected } from "#utils/common";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
+import { MultiplayerMode } from "../multiplayer/multiplayer-types";
 import i18next from "i18next";
 
 const NO_SAVE_SLOT = -1;
@@ -179,6 +181,14 @@ export class TitlePhase extends Phase {
           return true;
         },
         keepOpen: true,
+      },
+      {
+        label: "局域网联机",
+        handler: () => {
+          // 直接跳转到联机大厅 UI
+          globalScene.ui.setModeForceTransition(UiMode.MULTIPLAYER_LOBBY);
+          return true;
+        },
       },
       {
         label: i18next.t("menu:settings"),

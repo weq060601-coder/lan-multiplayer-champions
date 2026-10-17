@@ -33,6 +33,36 @@ import Phaser from "phaser";
 const repeatInputDelayMillis = 250;
 
 /**
+ * 焦点是否正落在一个可编辑的文字输入框里。
+ *
+ * 用途：这种时候键盘属于输入框，不该再被翻译成游戏按键。
+ * 最典型的坑是**退格键** —— `cfg-keyboard-qwerty.ts` 把 `KEY_BACKSPACE` 绑给了
+ * `BUTTON_CANCEL`，于是在房间码输入框里按退格，字没删成、弹窗直接被「取消」关掉了。
+ * （字其实是删掉了的：Phaser 没有 preventDefault，DOM 照样收到了退格。只是窗同时
+ * 关了，人眼看到的就是「退格 = 返回」。）同理还有方向键（想移动文字光标，结果被当成
+ * UI 上下键）、字母键 C/R/F/G/E/N/V（想打字，结果触发查属性/切换闪光等）。
+ *
+ * @remarks
+ * 只挡键盘这一路。屏幕上的虚拟按键（含 B 键）走的是 `touch-controls.ts`，那边是直接
+ * `emit("input_down")`、压根不发 DOM 键盘事件（`simulateKeyboardEvent` 这名字有误导性），
+ * 所以手机上「退格删字」和「B 键返回」能各走各的，互不影响。
+ */
+function isTextEntryFocused(): boolean {
+  const el = document.activeElement;
+  if (!el) {
+    return false;
+  }
+  if (el instanceof HTMLTextAreaElement || (el as HTMLElement).isContentEditable) {
+    return true;
+  }
+  if (el instanceof HTMLInputElement) {
+    // 复选框/单选框之类不吃文字输入，不该挡（本项目目前没有，纯属防御）
+    return !["checkbox", "radio", "button", "submit", "reset", "range", "color", "file"].includes(el.type);
+  }
+  return false;
+}
+
+/**
  * Manages and handles all input controls for the game, including keyboard and gamepad interactions.
  *
  * @remarks
@@ -350,6 +380,13 @@ export class InputsController {
    */
   keyboardKeyDown(event: KeyboardEvent): void {
     this.lastSource = "keyboard";
+
+    // 正在文字输入框里打字：键盘归输入框，不翻译成游戏按键。详见 isTextEntryFocused()。
+    // 回车例外 —— 表单基类的 processInput 只认 SUBMIT，放它过去才能「打完字按回车确定」。
+    if (isTextEntryFocused() && event.key !== "Enter") {
+      return;
+    }
+
     this.ensureKeyboardIsInit();
     const buttonDown = getButtonWithKeycode(this.getActiveConfig(Device.KEYBOARD)!, event.keyCode);
     if (buttonDown != null) {
@@ -386,7 +423,13 @@ export class InputsController {
         button: buttonUp,
       });
       const index = this.buttonLock.indexOf(buttonUp);
-      this.buttonLock.splice(index, 1);
+      // ⚠️ 必须判 index >= 0：indexOf 没找到时返回 -1，而 splice(-1, 1) 是从末尾算，
+      //    会把**另一个**按键的锁删掉，那个键从此一直被当成「按住」不放。
+      //    什么时候会走到这：keydown 被吞了、keyup 却照发 —— 比如在输入框里按退格
+      //    （keydown 被上面的焦点判断挡掉了），或者按住键的时候窗口失焦。
+      if (index >= 0) {
+        this.buttonLock.splice(index, 1);
+      }
       clearInterval(this.inputInterval[buttonUp]);
     }
   }

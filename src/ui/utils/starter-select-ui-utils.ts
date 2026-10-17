@@ -9,6 +9,7 @@ import {
   getStarterValueFriendshipCap,
   getValueReductionCandyCounts,
 } from "#balance/starters";
+import { allAbilities, allMoves } from "#data/data-lists";
 import { CandyUpgradeDisplayMode } from "#enums/candy-upgrade-display-mode";
 import { CandyUpgradeNotificationMode } from "#enums/candy-upgrade-notification-mode";
 import { ChallengeType } from "#enums/challenge-type";
@@ -17,6 +18,8 @@ import { DexAttr } from "#enums/dex-attr";
 import { GameModes } from "#enums/game-modes";
 import type { MoveId } from "#enums/move-id";
 import { Passive } from "#enums/passive";
+import { SpeciesFormKey } from "#enums/species-form-key";
+import type { SpeciesId } from "#enums/species-id";
 import { RibbonData } from "#system/ribbon-data";
 import type { DexEntry } from "#types/dex-data";
 import type { DexAttrProps, StarterDataEntry, StarterPreferences } from "#types/save-data";
@@ -506,4 +509,101 @@ export function getStarterMoves(starterId: StarterSpeciesId, formIndex: number):
   }
 
   return starterMoves;
+}
+
+/** 超级进化、极巨化、原始回归不算进选人招式池的进化。 */
+function isTemporaryBattleForm(formKey?: string | null): boolean {
+  if (!formKey) {
+    return false;
+  }
+  return (
+    formKey.startsWith(SpeciesFormKey.MEGA)
+    || formKey.startsWith(SpeciesFormKey.GIGANTAMAX)
+    || formKey === SpeciesFormKey.PRIMAL
+    || formKey === SpeciesFormKey.ETERNAMAX
+  );
+}
+
+/**
+ * 当前种族、它的进化前、以及整条进化分支（伊布的八个进化都算）。
+ * 不包含超级进化等临时形态。
+ */
+function collectEvolutionLine(starterId: SpeciesId): SpeciesId[] {
+  const line = new Set<SpeciesId>([starterId, ...speciesDataRegistry.getPrevolutionChain(starterId)]);
+  const queue = [...line];
+  while (queue.length > 0) {
+    const current = queue.pop()!;
+    for (const evolution of speciesDataRegistry.getEvolutions(current)) {
+      if (isTemporaryBattleForm(evolution.evoFormKey) || line.has(evolution.speciesId)) {
+        continue;
+      }
+      line.add(evolution.speciesId);
+      queue.push(evolution.speciesId);
+    }
+  }
+  return [...line];
+}
+
+/**
+ * PVP 选人招式池：整条进化链的升级招式（含等级 0 的进化招式和 -1 的回忆招式）
+ * 加上根种族的全部蛋招式。不看等级上限，也不看图鉴解锁。
+ * 只有当前选中的形态用它自己的形态招式，其余阶段用基础形态。
+ * 攻击招式按威力从高到低，这样默认四个槽位是最强的四个。
+ */
+export function getPvpStarterMoves(starterId: StarterSpeciesId, formIndex = 0): MoveId[] {
+  const seen = new Set<MoveId>();
+  const moves: MoveId[] = [];
+  const push = (moveId: MoveId): void => {
+    if (seen.has(moveId) || !allMoves[moveId] || allMoves[moveId].isUnimplemented) {
+      return;
+    }
+    seen.add(moveId);
+    moves.push(moveId);
+  };
+
+  for (const speciesId of collectEvolutionLine(starterId)) {
+    const levelMoves = speciesDataRegistry.getLevelMoves(speciesId, speciesId === starterId ? formIndex : 0);
+    for (const [, moveId] of levelMoves) {
+      push(moveId);
+    }
+  }
+
+  const rootId = speciesDataRegistry.getSpecies(starterId).getRootSpeciesId(true);
+  const eggKey = rootId in speciesEggMoves ? rootId : starterId in speciesEggMoves ? starterId : null;
+  if (eggKey != null) {
+    for (const eggMove of speciesEggMoves[eggKey as keyof typeof speciesEggMoves]) {
+      push(eggMove);
+    }
+  }
+
+  return moves.sort((a, b) => {
+    const powerA = allMoves[a].power > 0 ? allMoves[a].power : -1;
+    const powerB = allMoves[b].power > 0 ? allMoves[b].power : -1;
+    return powerB - powerA;
+  });
+}
+
+export interface PvpAbilityChoice {
+  index: number;
+  name: string;
+}
+
+/**
+ * PVP 可选特性。当前形态上每个不同、已实装的特性都算，不看图鉴解锁。
+ * 没有第二特性或隐藏特性时不会凭空占位凑出两项。
+ */
+export function getPvpAbilityChoices(speciesId: number, formIndex = 0): PvpAbilityChoice[] {
+  const species = speciesDataRegistry.getSpecies(speciesId as SpeciesId);
+  const form = species.forms[formIndex] ?? species;
+  const seen = new Set<number>();
+  const choices: PvpAbilityChoice[] = [];
+  for (let index = 0; index < form.getAbilityCount(); index++) {
+    const abilityId = form.getAbility(index);
+    if (!abilityId || seen.has(abilityId) || !allAbilities[abilityId]) {
+      continue;
+    }
+    seen.add(abilityId);
+    choices.push({ index, name: allAbilities[abilityId].name });
+  }
+  return choices;
 }

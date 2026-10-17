@@ -4,6 +4,7 @@ import { SwitchType } from "#enums/switch-type";
 import { UiMode } from "#enums/ui-mode";
 import { BattlePhase } from "#phases/battle-phase";
 import { PartyOption, PartyUiHandler } from "#ui/party-ui-handler";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 /**
  * Opens the party selector UI and transitions into a {@linkcode SwitchSummonPhase}
@@ -72,9 +73,18 @@ export class SwitchPhase extends BattlePhase {
       this.isModal ? PartyUiMode.FAINT_SWITCH : PartyUiMode.POST_BATTLE_SWITCH,
       fieldIndex,
       (slotIndex: number, option: PartyOption) => {
-        if (slotIndex >= globalScene.currentBattle.getBattlerCount() && slotIndex < 6) {
+        const willSwitch = slotIndex >= globalScene.currentBattle.getBattlerCount() && slotIndex < 6;
+        if (willSwitch) {
           const switchType = option === PartyOption.PASS_BATON ? SwitchType.BATON_PASS : this.switchType;
           globalScene.phaseManager.unshiftNew("SwitchSummonPhase", switchType, fieldIndex, slotIndex, this.doReturn);
+        }
+        // PVP：自己倒了一只、换谁上场，必须告诉对手。
+        // 对面那台机器正卡在 PvpRemoteSwitchPhase 等这条包，不发就会一直干等到超时。
+        if (this.isModal) {
+          const pvp = multiplayerManager.pvpManager;
+          if (pvp.isActive && !pvp.matchOver) {
+            pvp.sendSwitchIn(willSwitch ? slotIndex : -1);
+          }
         }
         globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
       },

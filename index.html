@@ -7,6 +7,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <head>
 	<meta charset="UTF-8" />
+	<script>
+		if (!localStorage.getItem('prLang') || localStorage.getItem('prLang') === 'en') {
+			localStorage.setItem('prLang', 'zh-Hans');
+		}
+	</script>
 	<title>PokéRogue</title>
 	<meta name="title" content="PokéRogue" />
 	<meta name="description" content="A Pokémon fangame heavily inspired by the roguelite genre. Battle endlessly while gathering stacking items, exploring many different biomes, and reaching Pokémon stats you never thought possible." />

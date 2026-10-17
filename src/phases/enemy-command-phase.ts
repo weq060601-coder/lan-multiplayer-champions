@@ -3,8 +3,12 @@ import { AbilityId } from "#enums/ability-id";
 import { BattlerIndex } from "#enums/battler-index";
 import { BattlerTagType } from "#enums/battler-tag-type";
 import { Command } from "#enums/command";
+import { MoveId } from "#enums/move-id";
+import { MoveUseMode } from "#enums/move-use-mode";
+import { getMoveTargets } from "#moves/move-utils";
 import type { EnemyPokemon } from "#field/pokemon";
 import { FieldPhase } from "#phases/field-phase";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 /**
  * Phase for determining an enemy AI's action for the next turn.
@@ -35,6 +39,12 @@ export class EnemyCommandPhase extends FieldPhase {
     const enemyPokemon = globalScene.getEnemyField()[this.fieldIndex];
 
     const battle = globalScene.currentBattle;
+
+    // PVP：敌方就是对面那个真人，指令不能由 AI 决定，必须等对手的广播。
+    if (multiplayerManager.pvpManager.isActive) {
+      this.resolveFromRemote(enemyPokemon);
+      return;
+    }
 
     const trainer = battle.trainer;
 
@@ -103,6 +113,53 @@ export class EnemyCommandPhase extends FieldPhase {
     globalScene.currentBattle.enemySwitchCounter = Math.max(globalScene.currentBattle.enemySwitchCounter - 1, 0);
 
     this.end();
+  }
+
+  /**
+   * PVP：等对手这一回合的指令，翻译成敌方的 turnCommand。
+   *
+   * 跨机器只传「队伍序号 / 招式 ID」这类两台机器都一致的东西；
+   * 目标（BattlerIndex）在本机重新算，因为同一只宝可梦在两台机器上的
+   * BattlerIndex 是镜像的（我方 0/1 <-> 敌方 2/3），直接传会打到自己人身上。
+   */
+  private resolveFromRemote(enemyPokemon: EnemyPokemon): void {
+    const battle = globalScene.currentBattle;
+    const pvp = multiplayerManager.pvpManager;
+    const turn = battle.turn;
+
+    pvp.awaitRemoteCommand(turn).then(cmd => {
+      const slot = this.fieldIndex + BattlerIndex.ENEMY;
+
+      if (cmd?.kind === "SWITCH" && cmd.switchSlot !== undefined && cmd.switchSlot >= 0) {
+        battle.turnCommands[slot] = {
+          command: Command.POKEMON,
+          cursor: cmd.switchSlot,
+          args: [false],
+          skip: this.skipTurn,
+        };
+        this.end();
+        return;
+      }
+
+      let moveId = cmd?.moveId ?? MoveId.NONE;
+      if (!moveId && cmd?.moveIndex !== undefined && cmd.moveIndex >= 0) {
+        moveId = enemyPokemon.getMoveset()[cmd.moveIndex]?.moveId ?? MoveId.NONE;
+      }
+      // 对手掉线 / 超时：退化成挣扎，两台机器规则一致，不至于卡死在这一回合
+      if (cmd == null || cmd.kind === "SKIP" || !moveId) {
+        moveId = MoveId.STRUGGLE;
+      }
+
+      const targets = getMoveTargets(enemyPokemon, moveId).targets;
+
+      battle.turnCommands[slot] = {
+        command: Command.FIGHT,
+        move: { move: moveId, targets, useMode: MoveUseMode.NORMAL },
+        skip: this.skipTurn,
+      };
+
+      this.end();
+    });
   }
 
   private shouldTera(pokemon: EnemyPokemon): boolean {

@@ -11,6 +11,8 @@ import { overrideHeldItems, overrideModifiers } from "#modifiers/modifier";
 import type { Starter } from "#types/save-data";
 import { SaveSlotUiMode } from "#ui/save-slot-select-ui-handler";
 import { applyChallenges } from "#utils/challenge-utils";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
+import { MultiplayerMode } from "../multiplayer/multiplayer-types";
 
 export class SelectStarterPhase extends Phase {
   public readonly phaseName = "SelectStarterPhase";
@@ -73,6 +75,14 @@ export class SelectStarterPhase extends Phase {
       );
       if (starter.moveset) {
         starterPokemon.tryPopulateMoveset(starter.moveset);
+        // 基础形态学不会进化链上的招式，tryPopulateMoveset 会丢掉。PVP 要强制写回。
+        if (multiplayerManager.roomState?.mode === MultiplayerMode.PVP) {
+          starter.moveset.forEach((moveId, slot) => {
+            if (moveId) {
+              starterPokemon.setMove(slot, moveId);
+            }
+          });
+        }
       }
       if (starter.passive) {
         starterPokemon.passive = true;

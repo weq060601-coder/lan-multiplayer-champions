@@ -1,0 +1,12 @@
+{
+  "appId": "com.pokerogue.multiplayer",
+  "appName": "PokéRogue",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

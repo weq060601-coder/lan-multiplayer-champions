@@ -47,3 +47,13 @@ coverage
 # Script outputs
 *.csv
 species-output/*
+
+# Local builds, save backups and temporary investigation files
+/*.apk
+/android-save-backup*/
+/repo/
+/.tmp_*
+/scripts/_binprobe.txt
+*.BROKEN_BACKUP
+/招式文本导出/*备份*/
+/招式文本导出/*日志.txt

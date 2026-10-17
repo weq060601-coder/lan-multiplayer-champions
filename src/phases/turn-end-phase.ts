@@ -15,6 +15,7 @@ import {
 } from "#modifiers/modifier";
 import { FieldPhase } from "#phases/field-phase";
 import i18next from "i18next";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 export class TurnEndPhase extends FieldPhase {
   public readonly phaseName = "TurnEndPhase";
@@ -76,6 +77,9 @@ export class TurnEndPhase extends FieldPhase {
     if (globalScene.arena.terrain && !globalScene.arena.terrain.lapse()) {
       globalScene.arena.trySetTerrain(TerrainType.NONE);
     }
+
+    // PVP：一回合打完，房主把权威 HP 下发一次，抹平两台机器的伤害浮动漂移
+    multiplayerManager.pvpManager.broadcastHpSync();
 
     this.end();
   }

@@ -7,6 +7,7 @@ import { ClassicFixedBossWaves } from "#enums/fixed-boss-waves";
 import { ModifierTier } from "#enums/modifier-tier";
 import { handleMysteryEncounterVictory } from "#mystery-encounters/encounter-phase-utils";
 import { PokemonPhase } from "#phases/pokemon-phase";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 export class VictoryPhase extends PokemonPhase {
   public readonly phaseName = "VictoryPhase";
@@ -46,6 +47,12 @@ export class VictoryPhase extends PokemonPhase {
         .find(p => (globalScene.currentBattle.battleType === BattleType.WILD ? p.isOnField() : !p?.isFainted()))
       && !globalScene.phaseManager.hasPhaseOfType("TrainerVictoryPhase") // temporary hotfix
     ) {
+      // PVP：对手整队倒完 = 本机赢了。联机对战不发奖励、不进下一波，直接结算回标题。
+      if (multiplayerManager.pvpManager.isActive) {
+        multiplayerManager.pvpManager.endMatch(true, () => this.end());
+        return;
+      }
+
       globalScene.phaseManager.pushNew("BattleEndPhase", true);
       if (globalScene.currentBattle.battleType === BattleType.TRAINER) {
         globalScene.phaseManager.pushNew("TrainerVictoryPhase");

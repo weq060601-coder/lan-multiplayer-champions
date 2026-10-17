@@ -41,6 +41,8 @@ import { MessageUiHandler } from "#ui/message-ui-handler";
 import { ModifierSelectUiHandler } from "#ui/modifier-select-ui-handler";
 import { MysteryEncounterUiHandler } from "#ui/mystery-encounter-ui-handler";
 import { OptionSelectUiHandler } from "#ui/option-select-ui-handler";
+import { MultiplayerInputFormUiHandler } from "#ui/multiplayer-input-form-ui-handler";
+import { MultiplayerLobbyUiHandler } from "#ui/multiplayer-lobby-ui-handler";
 import { PartyUiHandler } from "#ui/party-ui-handler";
 import { PokedexPageUiHandler } from "#ui/pokedex-page-ui-handler";
 import { PokedexScanUiHandler } from "#ui/pokedex-scan-ui-handler";
@@ -108,6 +110,8 @@ const noTransitionModes = [
   UiMode.RUN_INFO,
   UiMode.CHANGE_PASSWORD_FORM,
   UiMode.ALERT_MODAL,
+  UiMode.MULTIPLAYER_LOBBY,
+  UiMode.MULTIPLAYER_INPUT,
 ];
 
 // biome-ignore lint/style/useNamingConvention: a unique case (only 2 letters)
@@ -182,6 +186,9 @@ export class UI extends Phaser.GameObjects.Container {
       new MysteryEncounterUiHandler(),
       new ChangePasswordFormUiHandler(),
       new AlertModalUiHandler(),
+      new MultiplayerLobbyUiHandler(),
+      // ⚠️ 顺序必须和 UiMode 枚举完全一致：本数组是按枚举值当下标取用的。
+      new MultiplayerInputFormUiHandler(),
     ];
   }
 
@@ -536,11 +543,11 @@ export class UI extends Phaser.GameObjects.Container {
         return;
       }
       const doSetMode = () => {
-        if (this.mode !== mode) {
+        if (this.mode !== mode || forceTransition) {
           if (clear) {
             this.getHandler().clear();
           }
-          if (chainMode && this.mode && !clear) {
+          if (chainMode && this.mode && !clear && this.mode !== mode) {
             this.modeChain.push(this.mode);
             globalScene.updateGameInfo();
           }

@@ -4,6 +4,7 @@ import { audioManager } from "#app/global-audio-manager";
 import { globalScene } from "#app/global-scene";
 import { settings } from "#app/global-settings-manager";
 import { speciesDataRegistry } from "#app/global-species-data-registry";
+import { NON_LEGEND_PARADOX_POKEMON, NON_LEGEND_ULTRA_BEASTS } from "#balance/special-species-groups";
 import { activeOverrides } from "#app/overrides";
 import { handleTutorial, Tutorial } from "#app/tutorial";
 import { speciesEggMoves } from "#balance/egg-moves";
@@ -27,6 +28,7 @@ import { DexAttr } from "#enums/dex-attr";
 import { DropDownColumn } from "#enums/drop-down-column";
 import { EggSourceType } from "#enums/egg-source-types";
 import { GameModes } from "#enums/game-modes";
+import type { SpeciesId } from "#enums/species-id";
 import type { MoveId } from "#enums/move-id";
 import type { Nature } from "#enums/nature";
 import { Passive as PassiveAttr } from "#enums/passive";
@@ -65,6 +67,8 @@ import {
   getStarterDetailsFromPreferences,
   getStarterDexAttrPropsFromPreferences,
   getStarterMoves,
+  getPvpAbilityChoices,
+  getPvpStarterMoves,
   isPassiveAvailable,
   isSameSpeciesEggAvailable,
   isStarterValidForChallenge,
@@ -83,6 +87,9 @@ import { deepCopy, loadStarterPreferences, saveStarterPreferences } from "#utils
 import { getPokemonSpeciesForm, getPokerusStarters, getStarterColors } from "#utils/pokemon-utils";
 import i18next from "i18next";
 import type { GameObjects } from "phaser";
+import { multiplayerManager } from "../../multiplayer/multiplayer-manager";
+import { MultiplayerMode } from "../../multiplayer/multiplayer-types";
+import { getPvpPartySize } from "../../multiplayer/pvp-battle-manager";
 
 const COLUMNS = 9;
 const ROWS = 9;
@@ -97,6 +104,44 @@ const teamWindowY = 38;
 const teamWindowWidth = 34;
 const teamWindowHeight = 107;
 const randomSelectionWindowHeight = 20;
+const TEAM_PRESETS_STORAGE_KEY = "pokerogue.team-presets.v1";
+const TEAM_PRESET_COUNT = 6;
+
+function isPvpStarterSelect(): boolean {
+  return multiplayerManager.roomState?.mode === MultiplayerMode.PVP;
+}
+
+function getStarterPartyLimit(): number {
+  const room = multiplayerManager.roomState;
+  return room?.mode === MultiplayerMode.PVP ? getPvpPartySize(room.pvpFormat) : PLAYER_PARTY_MAX_SIZE;
+}
+
+const PVP_EXTRA_BANNED_SPECIES: ReadonlySet<number> = new Set<number>([
+  ...NON_LEGEND_ULTRA_BEASTS,
+  ...NON_LEGEND_PARADOX_POKEMON,
+]);
+
+/**
+ * PVP 未开启神战时，禁用神兽 / 准神兽 / 幻之宝可梦 / 究极异兽 / 悖谬宝可梦。
+ * 只看初始种族即可：普通宝可梦的进化链不会进化成神兽。
+ */
+function isPvpLegendaryBanned(starterId: StarterSpeciesId): boolean {
+  const room = multiplayerManager.roomState;
+  if (room?.mode !== MultiplayerMode.PVP || room.pvpLegendary === true) {
+    return false;
+  }
+  // 究极异兽、悖谬宝可梦在 PVP 里按神兽对待，一起禁掉（游戏数据未必给它们打神兽标记）。
+  if (PVP_EXTRA_BANNED_SPECIES.has(starterId)) {
+    return true;
+  }
+  const species = speciesDataRegistry.getSpecies(starterId);
+  return species.legendary || species.subLegendary || species.mythical;
+}
+
+/** 单机仍然是 1–5 级加已解锁蛋招式；PVP 用整条进化链，不看等级和图鉴解锁。 */
+function selectableStarterMoves(starterId: StarterSpeciesId, formIndex = 0): MoveId[] {
+  return isPvpStarterSelect() ? getPvpStarterMoves(starterId, formIndex) : getStarterMoves(starterId, formIndex);
+}
 
 /**
  * Calculates the starter position for a Pokemon of a given UI index
@@ -683,21 +728,31 @@ export class StarterSelectUiHandler extends MessageUiHandler {
     }
 
     if (starterPreferences.abilityIndex !== undefined) {
-      const speciesHasSingleAbility = species.ability2 === species.ability1;
-      const abilityAttr = starterData.abilityAttr;
-      const hasAbility1 = abilityAttr & AbilityAttr.ABILITY_1;
-      const hasAbility2 = abilityAttr & AbilityAttr.ABILITY_2;
-      const hasHiddenAbility = abilityAttr & AbilityAttr.ABILITY_HIDDEN;
-      // Due to a past bug it is possible that some Pokemon with a single ability have the ability2 flag
-      // In this case, we only count ability2 as valid if ability1 was not unlocked, otherwise we ignore it
-      const unlockedAbilities = [
-        hasAbility1,
-        speciesHasSingleAbility ? hasAbility2 && !hasAbility1 : hasAbility2,
-        hasHiddenAbility,
-      ];
-      if (!unlockedAbilities[starterPreferences.abilityIndex]) {
-        // requested ability wasn't unlocked, purging setting
-        starterPreferences.abilityIndex = undefined;
+      if (isPvpStarterSelect()) {
+        // PVP 不看图鉴解锁。已选进化目标时，记下的是最终形态的特性下标。
+        const targetId = (starterPreferences.pvpEvolution ?? starterId) as StarterSpeciesId;
+        const targetForm = targetId === starterId ? (starterPreferences.formIndex ?? 0) : 0;
+        const choices = getPvpAbilityChoices(targetId, targetForm);
+        if (!choices.some(choice => choice.index === starterPreferences.abilityIndex)) {
+          starterPreferences.abilityIndex = undefined;
+        }
+      } else {
+        const speciesHasSingleAbility = species.ability2 === species.ability1;
+        const abilityAttr = starterData.abilityAttr;
+        const hasAbility1 = abilityAttr & AbilityAttr.ABILITY_1;
+        const hasAbility2 = abilityAttr & AbilityAttr.ABILITY_2;
+        const hasHiddenAbility = abilityAttr & AbilityAttr.ABILITY_HIDDEN;
+        // Due to a past bug it is possible that some Pokemon with a single ability have the ability2 flag
+        // In this case, we only count ability2 as valid if ability1 was not unlocked, otherwise we ignore it
+        const unlockedAbilities = [
+          hasAbility1,
+          speciesHasSingleAbility ? hasAbility2 && !hasAbility1 : hasAbility2,
+          hasHiddenAbility,
+        ];
+        if (!unlockedAbilities[starterPreferences.abilityIndex]) {
+          // requested ability wasn't unlocked, purging setting
+          starterPreferences.abilityIndex = undefined;
+        }
       }
     }
 
@@ -1000,11 +1055,8 @@ export class StarterSelectUiHandler extends MessageUiHandler {
 
     switch (button) {
       case Button.ACTION:
-        if (this.tryStart(true)) {
-          success = true;
-        } else {
-          error = true;
-        }
+        this.openStartMenu();
+        success = true;
         break;
       case Button.UP:
         // UP from start button: go to pokemon in team if any, otherwise filter
@@ -1048,6 +1100,157 @@ export class StarterSelectUiHandler extends MessageUiHandler {
     return [success, error];
   }
 
+  /** Start the run or manage locally stored team presets. */
+  private openStartMenu(): void {
+    const ui = this.getUi();
+    ui.setModeWithoutClear(UiMode.OPTION_SELECT, {
+      options: [
+        {
+          label: "开始",
+          handler: () => {
+            ui.setMode(UiMode.STARTER_SELECT).then(() => {
+              if (!this.tryStart(true)) {
+                ui.playError();
+              }
+            });
+            return true;
+          },
+        },
+        {
+          label: "保存队伍预设",
+          handler: () => {
+            this.openTeamPresetSlots("save");
+            return true;
+          },
+        },
+        {
+          label: "读取队伍预设",
+          handler: () => {
+            this.openTeamPresetSlots("load");
+            return true;
+          },
+        },
+        {
+          label: i18next.t("menu:cancel"),
+          handler: () => {
+            ui.setMode(UiMode.STARTER_SELECT);
+            return true;
+          },
+        },
+      ],
+      yOffset: 19,
+    });
+  }
+
+  private readTeamPresets(): Array<Starter[] | null> {
+    try {
+      const raw = localStorage.getItem(TEAM_PRESETS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.from({ length: TEAM_PRESET_COUNT }, (_, i) =>
+        Array.isArray(parsed[i]) ? parsed[i] as Starter[] : null,
+      );
+    } catch (error) {
+      console.warn("读取队伍预设失败", error);
+      return Array.from({ length: TEAM_PRESET_COUNT }, () => null);
+    }
+  }
+
+  private openTeamPresetSlots(action: "save" | "load"): void {
+    const ui = this.getUi();
+    const presets = this.readTeamPresets();
+    const options: OptionSelectItem[] = presets.map((preset, index) => ({
+      label: `队伍 ${index + 1}${preset ? `（${preset.length} 只）` : "（空）"}`,
+      handler: () => {
+        if (action === "save") {
+          presets[index] = deepCopy(this.partyStarters);
+          try {
+            localStorage.setItem(TEAM_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+            ui.playSelect();
+          } catch (error) {
+            console.warn("保存队伍预设失败", error);
+            ui.playError();
+          }
+        } else if (presets[index]) {
+          this.loadTeamPreset(presets[index]!);
+        } else {
+          ui.playError();
+        }
+        ui.setMode(UiMode.STARTER_SELECT);
+        return true;
+      },
+    }));
+    options.push({
+      label: i18next.t("menu:cancel"),
+      handler: () => {
+        ui.setMode(UiMode.STARTER_SELECT);
+        return true;
+      },
+    });
+    ui.setModeWithoutClear(UiMode.OPTION_SELECT, { options, yOffset: 19 });
+  }
+
+  private loadTeamPreset(preset: Starter[]): void {
+    const ui = this.getUi();
+    const limit = getStarterPartyLimit();
+    if (!preset.length || preset.length > limit) {
+      ui.playError();
+      return;
+    }
+
+    const ids = preset.map(starter => starter.speciesId as StarterSpeciesId);
+    const unique = new Set(ids);
+    const valid = unique.size === ids.length
+      && ids.every((id, index) => {
+        return !isPvpLegendaryBanned(id)
+          && !!getStarterData(id).dexEntry?.caughtAttr
+          && checkStarterValidForChallenge(id, {
+            formIndex: preset[index].formIndex,
+            shiny: preset[index].shiny,
+            female: preset[index].female ?? false,
+            variant: preset[index].variant,
+          }, true);
+      })
+      && getPartyValue(ids) <= getRunValueLimit();
+    if (!valid) {
+      ui.playError();
+      return;
+    }
+
+    while (this.partyStarterIds.length) {
+      this.popPartyStarter(this.partyStarterIds.length - 1);
+    }
+    for (let index = 0; index < preset.length; index++) {
+      const saved = preset[index];
+      const id = saved.speciesId as StarterSpeciesId;
+      this.starterPreferences[id] = {
+        ...this.starterPreferences[id],
+        abilityIndex: saved.abilityIndex,
+        formIndex: saved.formIndex,
+        female: saved.female,
+        nature: saved.nature,
+        shiny: saved.shiny,
+        variant: saved.variant,
+        tera: saved.teraType,
+      };
+      if (saved.pvpEvolution !== undefined) {
+        this.starterPreferences[id]!.pvpEvolution = saved.pvpEvolution;
+      }
+      this.starterCursorObjs[index].setVisible(true).setPosition(this.cursorObj.x, this.cursorObj.y);
+      const props = getStarterDetailsFromPreferences(id, this.starterPreferences[id]);
+      this.addToParty(
+        id,
+        getDexAttrFromPreferences(id, this.starterPreferences[id]),
+        props.abilityIndex,
+        props.natureIndex,
+        saved.moveset ?? (selectableStarterMoves(id, saved.formIndex).slice(0, 4) as StarterMoveset),
+        props.teraType,
+      );
+    }
+    this.tryUpdateValue();
+    this.updateInstructions();
+    ui.playSelect();
+  }
+
   /** Processes inputs while the cursor is on the random choice button. */
   private processRandomCursorInput(button: Button): [success: boolean, error: boolean] {
     let success = false;
@@ -1057,7 +1260,7 @@ export class StarterSelectUiHandler extends MessageUiHandler {
 
     switch (button) {
       case Button.ACTION: {
-        if (this.partyStarterIds.length >= 6) {
+        if (this.partyStarterIds.length >= getStarterPartyLimit()) {
           error = true;
           break;
         }
@@ -1215,6 +1418,23 @@ export class StarterSelectUiHandler extends MessageUiHandler {
         break;
       case Button.CYCLE_ABILITY: {
         if (!this.canCycle.ability) {
+          break;
+        }
+
+        if (isPvpStarterSelect()) {
+          const targetId = (starterPreferences.pvpEvolution ?? this.lastStarterId) as StarterSpeciesId;
+          const targetForm = targetId === this.lastStarterId ? (starterPreferences.formIndex ?? 0) : 0;
+          const choices = getPvpAbilityChoices(targetId, targetForm);
+          if (choices.length > 1) {
+            const { abilityIndex } = getStarterDetailsFromPreferences(this.lastStarterId, starterPreferences);
+            const position = Math.max(
+              0,
+              choices.findIndex(choice => choice.index === abilityIndex),
+            );
+            this.setNewAbilityIndex(this.lastStarterId, choices[(position + 1) % choices.length].index);
+            this.setStarterDetails(this.lastStarterId);
+            cycled = true;
+          }
           break;
         }
 
@@ -1581,7 +1801,7 @@ export class StarterSelectUiHandler extends MessageUiHandler {
       !isDupe
       && isValidForChallenge
       && currentPartyValue + newCost <= getRunValueLimit()
-      && this.partyStarterIds.length < PLAYER_PARTY_MAX_SIZE
+      && this.partyStarterIds.length < getStarterPartyLimit()
     ) {
       options = [
         {
@@ -1651,7 +1871,7 @@ export class StarterSelectUiHandler extends MessageUiHandler {
     );
 
     const { formIndex } = getStarterDexAttrPropsFromPreferences(this.lastStarterId, starterPreferences);
-    const starterMoves = getStarterMoves(this.lastStarterId, formIndex);
+    const starterMoves = selectableStarterMoves(this.lastStarterId, formIndex);
     if (starterMoves.length > 1) {
       // this lets you change the pokemon moves
       const showSwapOptions = (moveset: StarterMoveset) => {
@@ -1804,6 +2024,93 @@ export class StarterSelectUiHandler extends MessageUiHandler {
           return true;
         },
       });
+    }
+
+    // PVP 进化和特性都在选宝可梦界面定下来。特性不看图鉴解锁；已经选了进化目标就列那个形态的特性。
+    if (isPvpStarterSelect()) {
+      const abilitySpeciesId = (starterPreferences.pvpEvolution ?? this.lastStarterId) as StarterSpeciesId;
+      const abilityForm = abilitySpeciesId === this.lastStarterId ? formIndex : 0;
+      const abilityChoices = getPvpAbilityChoices(abilitySpeciesId, abilityForm);
+      if (abilityChoices.length > 1) {
+        const currentAbility =
+          abilityChoices.find(choice => choice.index === starterPreferences.abilityIndex) ?? abilityChoices[0];
+        options.push({
+          label: `选择特性（当前：${currentAbility.name}）`,
+          handler: () => {
+            ui.setMode(UiMode.STARTER_SELECT).then(() => {
+              ui.showText("选择特性", null, () => {
+                ui.setModeWithoutClear(UiMode.OPTION_SELECT, {
+                  options: abilityChoices
+                    .map(choice => ({
+                      label: choice.name,
+                      handler: () => {
+                        this.setNewAbilityIndex(this.lastStarterId, choice.index);
+                        this.setStarterDetails(this.lastStarterId);
+                        ui.setMode(UiMode.STARTER_SELECT);
+                        return true;
+                      },
+                    }))
+                    .concat({
+                      label: i18next.t("menu:cancel"),
+                      handler: () => {
+                        ui.setMode(UiMode.STARTER_SELECT);
+                        return true;
+                      },
+                    }),
+                  maxOptions: 8,
+                });
+              });
+            });
+            return true;
+          },
+        });
+      }
+
+      const rootSpecies = speciesDataRegistry.getSpecies(this.lastStarterId);
+      const choices: { speciesId: number; name: string }[] = [
+        { speciesId: this.lastStarterId, name: `${rootSpecies.name}（不进化）` },
+      ];
+      const seen = new Set<number>([this.lastStarterId]);
+      const queue: SpeciesId[] = [this.lastStarterId];
+      while (queue.length > 0) {
+        const from = queue.shift()!;
+        for (const evo of speciesDataRegistry.getEvolutions(from)) {
+          if (seen.has(evo.speciesId)) {
+            continue;
+          }
+          seen.add(evo.speciesId);
+          queue.push(evo.speciesId);
+          choices.push({
+            speciesId: evo.speciesId,
+            name: speciesDataRegistry.getSpecies(evo.speciesId).name,
+          });
+        }
+      }
+      if (choices.length > 1) {
+        options.push({
+          label: `PVP 进化目标：${choices.find(c => c.speciesId === starterPreferences.pvpEvolution)?.name ?? rootSpecies.name}`,
+          handler: () => {
+            ui.setMode(UiMode.STARTER_SELECT).then(() => {
+              ui.showText(`${rootSpecies.name} 的 PVP 进化目标`, null, () => {
+                ui.setModeWithoutClear(UiMode.OPTION_SELECT, {
+                  options: choices.map(choice => ({
+                    label: choice.name,
+                    handler: () => {
+                      starterPreferences.pvpEvolution = choice.speciesId;
+                      originalStarterPreferences.pvpEvolution = choice.speciesId;
+                      saveStarterPreferences(this.originalStarterPreferences);
+                      ui.setMode(UiMode.STARTER_SELECT);
+                      return true;
+                    },
+                  })),
+                  maxOptions: 8,
+                });
+              });
+            });
+            return true;
+          },
+        });
+      }
     }
 
     const passiveAttr = starterData.passiveAttr;
@@ -2141,7 +2448,7 @@ export class StarterSelectUiHandler extends MessageUiHandler {
       const { dexEntry } = getStarterData(this.lastStarterId);
       if (!dexEntry?.caughtAttr) {
         error = true;
-      } else if (this.partyStarterIds.length <= 6) {
+      } else if (this.partyStarterIds.length < getStarterPartyLimit()) {
         this.openPokemonMenu();
         success = true;
       }
@@ -2230,6 +2537,7 @@ export class StarterSelectUiHandler extends MessageUiHandler {
       nickname: this.starterPreferences[starterId]?.nickname,
       teraType,
       ivs: dexEntry.ivs,
+      pvpEvolution: this.starterPreferences[starterId]?.pvpEvolution,
     };
 
     this.partyStarters.push(starter);
@@ -2341,6 +2649,11 @@ export class StarterSelectUiHandler extends MessageUiHandler {
     this.filteredStarterIds = speciesDataRegistry.getAllStarters().filter(starterId => {
       // Exclude starters which are not valid for the challenge
       if (globalScene.gameMode.modeId === GameModes.CHALLENGE && !isStarterValidForChallenge(starterId)) {
+        return false;
+      }
+
+      // PVP 神战关闭时，神兽直接不出现在列表里（随机选也只从这个列表里抽）。
+      if (isPvpLegendaryBanned(starterId)) {
         return false;
       }
 
@@ -2880,7 +3193,14 @@ export class StarterSelectUiHandler extends MessageUiHandler {
       hasAbility2 = 0;
     }
 
-    this.canCycle.ability = [hasAbility1, hasAbility2, hasHiddenAbility].filter(a => a).length > 1;
+    if (isPvpStarterSelect()) {
+      const prefs = this.starterPreferences[starterId];
+      const targetId = (prefs?.pvpEvolution ?? starterId) as StarterSpeciesId;
+      const targetForm = targetId === starterId ? formIndex : 0;
+      this.canCycle.ability = getPvpAbilityChoices(targetId, targetForm).length > 1;
+    } else {
+      this.canCycle.ability = [hasAbility1, hasAbility2, hasHiddenAbility].filter(a => a).length > 1;
+    }
 
     // TODO: can this be improved to not be `.filter().map().filter()`?
     this.canCycle.form =
@@ -2910,7 +3230,8 @@ export class StarterSelectUiHandler extends MessageUiHandler {
     const { starterDataEntry } = getStarterData(starterId);
 
     this.starterMoveset = null;
-    const starterMoves = getStarterMoves(starterId, formIndex);
+    const pvp = isPvpStarterSelect();
+    const starterMoves = selectableStarterMoves(starterId, formIndex);
 
     const speciesMoveData = starterDataEntry.moveset;
     const moveData: StarterMoveset | null = speciesMoveData
@@ -2918,11 +3239,14 @@ export class StarterSelectUiHandler extends MessageUiHandler {
         ? speciesMoveData
         : speciesMoveData[formIndex]
       : null;
-    const availableStarterMoves = starterMoves.concat(
-      Object.hasOwn(speciesEggMoves, starterId)
-        ? speciesEggMoves[starterId].filter((_: any, em: number) => starterDataEntry.eggMoves & (1 << em))
-        : [],
-    );
+    // PVP 的池子里已经有全部蛋招式，再按解锁位过滤一次会把刚选的招式剔掉。
+    const availableStarterMoves = pvp
+      ? starterMoves
+      : starterMoves.concat(
+          Object.hasOwn(speciesEggMoves, starterId)
+            ? speciesEggMoves[starterId].filter((_: any, em: number) => starterDataEntry.eggMoves & (1 << em))
+            : [],
+        );
     this.starterMoveset = (moveData || (starterMoves.slice(0, 4) as StarterMoveset)).filter(m =>
       availableStarterMoves.find(sm => sm === m),
     ) as StarterMoveset;
@@ -3127,6 +3451,21 @@ export class StarterSelectUiHandler extends MessageUiHandler {
   private tryStart(manualTrigger = false): boolean {
     if (this.partyStarterIds.length === 0) {
       return false;
+    }
+
+    const room = multiplayerManager.roomState;
+    if (room?.mode === MultiplayerMode.PVP) {
+      const required = getPvpPartySize(room.pvpFormat);
+      if (this.partyStarterIds.length !== required) {
+        this.showText(
+          `${required}v${required} 对战需要恰好选择 ${required} 只宝可梦，当前为 ${this.partyStarterIds.length} 只。`,
+          undefined,
+          () => this.showText("", 0),
+          undefined,
+          true,
+        );
+        return true;
+      }
     }
 
     const ui = this.getUi();

@@ -20,6 +20,7 @@ import { PokemonMove } from "#moves/pokemon-move";
 import { PokemonPhase } from "#phases/pokemon-phase";
 import { inSpeedOrder } from "#utils/speed-order-generator";
 import i18next from "i18next";
+import { multiplayerManager } from "../multiplayer/multiplayer-manager";
 
 export class FaintPhase extends PokemonPhase {
   public readonly phaseName = "FaintPhase";
@@ -95,6 +96,10 @@ export class FaintPhase extends PokemonPhase {
 
   private doFaint(): void {
     const pokemon = this.getPokemon();
+
+    if (this.player && pokemon.isPlayer()) {
+      multiplayerManager.raceManager.onLocalPokemonFainted(pokemon as PlayerPokemon, this.fieldIndex);
+    }
 
     // Track total times pokemon have been KO'd for Last Respects/Supreme Overlord
     if (pokemon.isPlayer()) {
@@ -189,7 +194,14 @@ export class FaintPhase extends PokemonPhase {
             .filter(p => p.isActive() && !p.isOnField() && p.trainerSlot === (pokemon as EnemyPokemon).trainerSlot)
             .length > 0;
         if (hasReservePartyMember) {
-          globalScene.phaseManager.pushNew("SwitchSummonPhase", SwitchType.SWITCH, this.fieldIndex, -1, false, false);
+          // PVP：slotIndex 传 -1 会走 trainer.getNextSummonIndex() 的 AI 选人逻辑，
+          // 那跟对手实际选了哪一只毫无关系，一换人两台机器立刻分叉。
+          // 所以改成先等对手把选择广播过来，再用确定的序号换。
+          if (multiplayerManager.pvpManager.isActive) {
+            globalScene.phaseManager.pushNew("PvpRemoteSwitchPhase", this.fieldIndex);
+          } else {
+            globalScene.phaseManager.pushNew("SwitchSummonPhase", SwitchType.SWITCH, this.fieldIndex, -1, false, false);
+          }
         }
       }
     }

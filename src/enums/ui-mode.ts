@@ -47,4 +47,11 @@ export enum UiMode {
   MYSTERY_ENCOUNTER,
   CHANGE_PASSWORD_FORM,
   ALERT_MODAL,
+  MULTIPLAYER_LOBBY,
+  /**
+   * 联机大厅里输入房间码 / 服务器地址用的游戏内输入框。
+   * ⚠️ 必须留在枚举末尾：ui.ts 里的 `this.handlers` 数组是**按本枚举顺序索引**的，
+   *    往中间插一个会让后面所有模式全部错位。
+   */
+  MULTIPLAYER_INPUT,
 }

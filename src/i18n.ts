@@ -150,6 +150,10 @@ const nsEn: string[] = [];
  *    If you want the namespace name to be different from the file name, configure it in `src/i18n-namespace-map.ts`.
  */
 
+if (!localStorage.getItem("prLang")) {
+  localStorage.setItem("prLang", "zh-Hans");
+}
+
 await i18next
   .use(HttpBackend)
   .use(LanguageDetector)
@@ -157,8 +161,13 @@ await i18next
   .init(
     {
       fallbackLng: {
+        "zh-CN": ["zh-Hans"],
+        zh: ["zh-Hans"],
+        "zh-SG": ["zh-Hans"],
+        "zh-TW": ["zh-Hant"],
+        "zh-HK": ["zh-Hant"],
         "es-419": ["es-ES", "en"],
-        default: ["en"],
+        default: ["zh-Hans", "en"],
       },
       supportedLngs: SUPPORTED_LANGUAGES,
       backend: {
@@ -199,7 +208,7 @@ await i18next
     },
     async () => {
       i18next.services.formatter?.add("money", i18nMoneyFormatter);
-      await initFonts(localStorage.getItem("prLang") ?? undefined);
+      await initFonts(localStorage.getItem("prLang") ?? "zh-Hans");
     },
   );
 

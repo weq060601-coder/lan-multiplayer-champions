@@ -104,6 +104,8 @@ export interface StarterMoveData {
 /** The starter's current attributes (such as selected nature, nickname, etc). */
 export interface StarterPreferences {
   abilityIndex?: number | undefined;
+  /** PVP 房间的进化目标；每只宝可梦独立保存，便于下一局沿用。 */
+  pvpEvolution?: number | undefined;
   favorite?: boolean | undefined;
   female?: boolean | undefined;
   formIndex?: number | undefined;
@@ -137,6 +139,8 @@ export interface Starter {
   nickname?: string | undefined;
   teraType?: PokemonType | undefined;
   ivs: number[];
+  /** PVP 队伍预设使用的进化目标。 */
+  pvpEvolution?: SpeciesId | undefined;
 }
 
 // TODO: What type of number does this store?

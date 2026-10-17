@@ -1,5 +1,11 @@
 import { pokerogueApi } from "#api/api";
-import { clientSessionId, getSessionDataLocalStorageKey, loggedInUser, updateUserInfo } from "#app/account";
+import {
+  clientSessionId,
+  getSessionDataLocalStorageKey,
+  loggedInUser,
+  setLastPlayedSessionSlot,
+  updateUserInfo,
+} from "#app/account";
 import { defaultStarterSpecies, saveKey } from "#app/constants";
 import { getGameMode } from "#app/game-mode";
 import { audioManager } from "#app/global-audio-manager";
@@ -853,6 +859,7 @@ export class GameData {
       return false;
     }
     await this.initSessionFromData(sessionData);
+    setLastPlayedSessionSlot(slotIndex);
     return true;
   }
 
@@ -1230,6 +1237,7 @@ export class GameData {
     );
 
     console.debug(`Session data saved to slot ${globalScene.sessionSlotId}!`);
+    setLastPlayedSessionSlot(globalScene.sessionSlotId);
 
     if (bypassLogin || !sync) {
       const verified = await this.verify();
@@ -1365,8 +1373,12 @@ export class GameData {
       document.body.appendChild(overlay);
       document.body.appendChild(uploadButton);
     } else {
-      saveFile.style.display = "none";
+      // Android WebView's file chooser may ignore clicks on a detached or display:none input.
+      // Keep the picker input attached and visually hidden so the native document picker opens.
+      saveFile.style.cssText = "position:fixed;left:-10000px;top:0;width:1px;height:1px;opacity:0;";
     }
+
+    document.body.appendChild(saveFile);
 
     saveFile.addEventListener("change", ev => {
       const overlay = document.getElementById("iosUploadOverlay");
@@ -1374,7 +1386,21 @@ export class GameData {
       overlay?.remove();
       button?.remove();
 
+      const file = (ev.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        saveFile.remove();
+        return;
+      }
+      saveFile.remove();
+
       const reader = new FileReader();
+
+      reader.onerror = () => {
+        saveFile.remove();
+        globalScene.ui.showText(i18next.t("menuUiHandler:importCorrupt", {
+          dataName: i18next.t(`gameData:${toCamelCase(GameDataType[dataType])}`),
+        }), null, () => globalScene.ui.showText("", 0), fixedInt(1500));
+      };
 
       reader.onload = (_ => {
         return e => {
@@ -1479,9 +1505,9 @@ export class GameData {
             );
           });
         };
-      })((ev.target as any).files[0]);
+      })(file);
 
-      reader.readAsText((ev.target as any).files[0]);
+      reader.readAsText(file);
     });
 
     if (!isIos()) {

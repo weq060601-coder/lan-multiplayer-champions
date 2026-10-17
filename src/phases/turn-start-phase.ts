@@ -51,6 +51,12 @@ export class TurnStartPhase extends FieldPhase {
   start() {
     super.start();
 
+    // PVP 的伤害、会心、命中都走 battleSeed。每回合先清掉上回合多消耗的随机数，
+    // 否则一边多掷一次，后面整场的伤害都会和另一边错开。
+    if (globalScene.currentBattle.pvpLockstep) {
+      globalScene.currentBattle.resetPvpTurnSeed();
+    }
+
     const field = globalScene.getField();
     const moveOrder = this.getCommandOrder();
 

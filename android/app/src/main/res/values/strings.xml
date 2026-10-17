@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PokéRogue 局域网联机版</string>
+    <string name="title_activity_main">PokéRogue 局域网联机版</string>
+    <string name="package_name">com.pokerogue.multiplayer</string>
+    <string name="custom_url_scheme">com.pokerogue.multiplayer</string>
+</resources>

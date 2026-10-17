@@ -32,6 +32,11 @@ export async function updateUserInfo(): Promise<[success: boolean, status: numbe
       break;
     }
   }
+  // 「继续游戏」优先读上次玩的那个存档；那个槽已被删除时才退回第一个有存档的槽。
+  const remembered = getLastPlayedSessionSlot();
+  if (remembered !== null && localStorage.getItem(getSessionDataLocalStorageKey(remembered))) {
+    loggedInUser.lastSessionSlot = remembered;
+  }
 
   // Migrate old data from before the username was appended
   // TODO: This fallback has existed for 20 MONTHS by now; review if we need it anymore
@@ -47,6 +52,28 @@ export async function updateUserInfo(): Promise<[success: boolean, status: numbe
     }
   }
   return [true, 200];
+}
+
+/** 本地记录「上次玩的存档槽」的 key，按用户名区分。 */
+function getLastPlayedSlotKey(): string {
+  return `lastSessionSlot_${loggedInUser?.username ?? "Guest"}`;
+}
+
+/** 记下最近读取或保存过的存档槽，供下次启动时「继续游戏」使用。 */
+export function setLastPlayedSessionSlot(slotId: number): void {
+  if (!Number.isInteger(slotId) || slotId < 0 || slotId >= 5) {
+    return;
+  }
+  try {
+    localStorage.setItem(getLastPlayedSlotKey(), String(slotId));
+  } catch (err) {
+    console.warn("Failed to remember last session slot", err);
+  }
+}
+
+function getLastPlayedSessionSlot(): number | null {
+  const slot = Number.parseInt(localStorage.getItem(getLastPlayedSlotKey()) ?? "", 10);
+  return Number.isInteger(slot) && slot >= 0 && slot < 5 ? slot : null;
 }
 
 /**
