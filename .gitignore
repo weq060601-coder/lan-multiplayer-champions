@@ -55,5 +55,4 @@ species-output/*
 /.tmp_*
 /scripts/_binprobe.txt
 *.BROKEN_BACKUP
-/招式文本导出/*备份*/
-/招式文本导出/*日志.txt
+/招式文本导出/
