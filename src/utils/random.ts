@@ -11,8 +11,8 @@
  */
 
 import { globalScene } from "#app/global-scene";
-import type { Mutable } from "#types/type-helpers";
 import { randSeedInt, randSeedItem, randSeedShuffle } from "#utils/common";
+import type { Writable } from "type-fest";
 
 /**
  * Select a random element using an offset such that the chosen element is
@@ -40,7 +40,7 @@ import { randSeedInt, randSeedItem, randSeedShuffle } from "#utils/common";
  */
 export function randSeedUniqueItem<T>(choices: readonly T[], seedOffset: number, scene = globalScene): T {
   if (choices.length <= seedOffset) {
-    return randSeedItem(choices as Mutable<typeof choices>);
+    return randSeedItem(choices as Writable<typeof choices>);
   }
 
   // TODO: Refactor `excuteWithSeedOffset` and pull it into this module
@@ -53,25 +53,34 @@ export function randSeedUniqueItem<T>(choices: readonly T[], seedOffset: number,
 }
 
 /**
- * Function for picking an item out of a mapping based on the given weights
+ * Function for picking an item out of a mapping based on the given weights.
  * @param items - The mapping of item to weight
- * @returns a randomly picked item according to the weights
+ * @returns A randomly picked item according to the weights
+ * @throws An error if the input map is empty
  */
 export function weightedPick<T>(items: Map<T, number>): T {
-  const totalWeight = [...items.values()].reduce((a: number, b: number) => a + b, 0);
+  if (items.size === 0) {
+    throw new Error("Input to `weightedPick` function has no items!");
+  }
+
+  const totalWeight = items.values().reduce((total, cur) => total + cur, 0);
+  if (totalWeight <= 0) {
+    console.warn("Total weight of all items in the input to `weightedPick` was less than or equal to 0!\n", items);
+    return items.keys().next().value!; // returns the first key in the map
+  }
+
   const randomNumber = randSeedInt(totalWeight);
 
   let totalWeightSoFar = 0;
-  for (const [i, weight] of items) {
+  for (const [key, weight] of items) {
     totalWeightSoFar += weight;
 
     // This is a < and not a <= since the first item can have 0 weight
     if (randomNumber < totalWeightSoFar) {
-      return i;
+      return key;
     }
   }
 
-  // Failsafe if the above loop somehow failed (e.g., if all items have 0 weight)
-  console.error("Random selection failed, selecting the first element instead. Original list of items:", items);
-  return items.keys()[0];
+  // This should be unreachable, added to satisfy the typechecker
+  return items.keys().next().value!;
 }

@@ -56,3 +56,4 @@ species-output/*
 /scripts/_binprobe.txt
 *.BROKEN_BACKUP
 /招式文本导出/
+game-data-output/*

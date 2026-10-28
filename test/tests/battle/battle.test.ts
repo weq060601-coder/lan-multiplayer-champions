@@ -1,6 +1,7 @@
 import { speciesDataRegistry } from "#app/global-species-data-registry";
 import { AbilityId } from "#enums/ability-id";
 import { BiomeId } from "#enums/biome-id";
+import { Command } from "#enums/command";
 import { MoveId } from "#enums/move-id";
 import { SpeciesId } from "#enums/species-id";
 import { Stat } from "#enums/stat";
@@ -86,7 +87,7 @@ describe("Phase - Battle Phase", () => {
       ...([SpeciesId.BLASTOISE, SpeciesId.CHARIZARD, SpeciesId.DARKRAI, SpeciesId.GABITE].slice(0, qty) as [SpeciesId]),
     );
 
-    expect(game.scene.ui?.getMode()).toBe(UiMode.COMMAND);
+    expect(game.scene.ui?.mode).toBe(UiMode.COMMAND);
     expect(game.scene.phaseManager.getCurrentPhase()).toBeInstanceOf(CommandPhase);
   });
 
@@ -106,7 +107,7 @@ describe("Phase - Battle Phase", () => {
     game.move.select(moveToUse);
     await game.phaseInterceptor.to("DamageAnimPhase", false);
     await game.killPokemon(game.scene.currentBattle.enemyParty[0]);
-    expect(game.scene.currentBattle.enemyParty[0].isFainted()).toBe(true);
+    expect(game.scene.currentBattle.enemyParty[0]).toHaveFainted();
     await game.phaseInterceptor.to("VictoryPhase");
   });
 
@@ -179,5 +180,36 @@ describe("Phase - Battle Phase", () => {
       () => game.isCurrentPhase("NextEncounterPhase"),
     );
     await game.phaseInterceptor.to("SwitchPhase");
+  });
+
+  it("should not allow the player to select rewards when running away", async () => {
+    game.override //
+      .enemySpecies(SpeciesId.MAGIKARP)
+      .enemyMoveset(MoveId.SPLASH)
+      .battleStyle("single")
+      .runSuccess(true);
+    await game.classicMode.startBattle(SpeciesId.FEEBAS);
+
+    const commandPhase = game.scene.phaseManager.getCurrentPhase() as CommandPhase;
+    commandPhase.handleCommand(Command.RUN, 0);
+
+    let rewardsShown = false;
+
+    game.promptHandler.addToNextPrompt(
+      "SelectModifierPhase",
+      UiMode.MODIFIER_SELECT,
+      () => {
+        rewardsShown = true;
+        game.endPhase();
+      },
+      () => game.isCurrentPhase("NewBattlePhase"),
+    );
+
+    await game.phaseInterceptor.to("NewBattlePhase");
+
+    if (rewardsShown) {
+      expect.fail("The player should not have an opportunity to select rewards.");
+    }
+    expect(game.scene.currentBattle.waveIndex).toBe(2);
   });
 });

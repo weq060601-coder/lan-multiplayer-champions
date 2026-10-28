@@ -6,7 +6,7 @@ import { speciesDataRegistry } from "#app/global-species-data-registry";
 import { getPokemonNameWithAffix } from "#app/messages";
 import { activeOverrides } from "#app/overrides";
 import { EvolutionItem } from "#balance/pokemon-evolutions";
-import { tmPoolTiers } from "#balance/tm-pool-tiers";
+import { getTmNumber, tmPoolTiers } from "#balance/tm-pool-tiers";
 import { getBerryEffectDescription, getBerryName } from "#data/berry";
 import { getDailyEventSeedLuck } from "#data/daily-run";
 import { allMoves, modifierTypes } from "#data/data-lists";
@@ -123,7 +123,7 @@ import type { PokemonMoveSelectFilter, PokemonSelectFilter } from "#ui/party-ui-
 import { PartyUiHandler } from "#ui/party-ui-handler";
 import { getModifierTierTextTint } from "#ui/text";
 import { applyChallenges } from "#utils/challenge-utils";
-import { BooleanHolder, formatMoney, NumberHolder, padInt, randSeedInt, randSeedItem } from "#utils/common";
+import { BooleanHolder, formatMoney, NumberHolder, randSeedInt, randSeedItem } from "#utils/common";
 import { getEnumKeys, getEnumValues } from "#utils/enums";
 import { getPokemonTypeLocaleKey } from "#utils/i18n";
 import { getModifierPoolForType, getModifierType } from "#utils/modifier-utils";
@@ -1149,7 +1149,7 @@ export class TmModifierType extends PokemonModifierType {
 
   get name(): string {
     return i18next.t("modifierType:ModifierType.TmModifierType.name", {
-      moveId: padInt(Object.keys(tmPoolTiers).indexOf(this.moveId.toString()) + 1, 3),
+      moveId: getTmNumber(this.moveId),
       moveName: allMoves[this.moveId].name,
     });
   }
@@ -1172,30 +1172,8 @@ export class EvolutionItemModifierType extends PokemonModifierType implements Ge
       "",
       EvolutionItem[evolutionItem].toLowerCase(),
       (_type, args) => new EvolutionItemModifier(this, (args[0] as PlayerPokemon).id),
-      (pokemon: PlayerPokemon) => {
-        if (
-          speciesDataRegistry.hasEvolutions(pokemon.species.speciesId)
-          && speciesDataRegistry
-            .getEvolutions(pokemon.species.speciesId)
-            .filter(e => e.validate(pokemon, false, this.evolutionItem)).length > 0
-          && pokemon.getFormKey() !== SpeciesFormKey.GIGANTAMAX
-        ) {
-          return null;
-        }
-        if (
-          pokemon.isFusion()
-          && pokemon.fusionSpecies
-          && speciesDataRegistry.hasEvolutions(pokemon.fusionSpecies.speciesId)
-          && speciesDataRegistry
-            .getEvolutions(pokemon.fusionSpecies.speciesId)
-            .filter(e => e.validate(pokemon, true, this.evolutionItem)).length > 0
-          && pokemon.getFusionFormKey() !== SpeciesFormKey.GIGANTAMAX
-        ) {
-          return null;
-        }
-
-        return PartyUiHandler.NoEffectMessage;
-      },
+      (pokemon: PlayerPokemon) =>
+        pokemon.isEvolutionItemCompatible(this.evolutionItem) ? null : PartyUiHandler.NoEffectMessage,
     );
 
     this.evolutionItem = evolutionItem;
@@ -1225,25 +1203,8 @@ export class FormChangeItemModifierType extends PokemonModifierType implements G
       "",
       FormChangeItem[formChangeItem].toLowerCase(),
       (_type, args) => new PokemonFormChangeItemModifier(this, (args[0] as PlayerPokemon).id, formChangeItem, true),
-      (pokemon: PlayerPokemon) => {
-        // Make sure the Pokemon has alternate forms
-        if (
-          speciesDataRegistry.hasFormChanges(pokemon.species.speciesId) // Get all form changes for this species with an item trigger, including any compound triggers
-          && speciesDataRegistry
-            .getFormChanges(pokemon.species.speciesId)
-            .filter(
-              fc => fc.trigger.hasTriggerType(SpeciesFormChangeItemTrigger) && fc.preFormKey === pokemon.getFormKey(),
-            )
-            // Returns true if any form changes match this item
-            .flatMap(fc => fc.findTrigger(SpeciesFormChangeItemTrigger) as SpeciesFormChangeItemTrigger)
-            .flatMap(fc => fc.item)
-            .includes(this.formChangeItem)
-        ) {
-          return null;
-        }
-
-        return PartyUiHandler.NoEffectMessage;
-      },
+      (pokemon: PlayerPokemon) =>
+        pokemon.isFormChangeItemCompatible(this.formChangeItem) ? null : PartyUiHandler.NoEffectMessage,
     );
 
     this.formChangeItem = formChangeItem;
@@ -1305,7 +1266,12 @@ class AttackTypeBoosterModifierTypeGenerator extends ModifierTypeGenerator {
           // Account for variable type changing moves
           // Get a variable type attribute of the move
           const variableTypeAttr = move.getAttrs("VariableMoveTypeAttr")[0];
-          const types = variableTypeAttr?.getTypesForItemSpawn(p, move) ?? [move.type];
+          let types: PokemonType[];
+          if (variableTypeAttr) {
+            types = variableTypeAttr.getTypesForItemSpawn(p, move);
+          } else {
+            types = p.getMoveTypeForItemSpawn(move);
+          }
           for (const type of types) {
             const currentWeight = attackMoveTypeWeights.get(type) ?? 0;
             if (currentWeight < 3) {
@@ -1561,7 +1527,7 @@ class EvolutionItemModifierTypeGenerator extends ModifierTypeGenerator {
           }),
       ]
         .flat()
-        .flatMap(e => e.evoItem)
+        .flatMap(e => e.item)
         .filter(i => !!i && i > 50 === rare);
 
       if (evolutionItemPool.length === 0) {

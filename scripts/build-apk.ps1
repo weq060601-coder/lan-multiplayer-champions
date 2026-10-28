@@ -49,8 +49,10 @@ Set-Location $repoRoot
 if ($LASTEXITCODE -ne 0) { Write-Error "cap sync failed."; exit 1 }
 
 # 自动确保所有 gradle 脚本使用本机 JDK 17。
-# Capacitor 8 的 Java 21 写在 node_modules 里，只扫 android/ 会漏掉。
-$gradleRoots = @($androidDir, (Join-Path $repoRoot "node_modules\@capacitor"))
+# pnpm 的包目录是链接，先找真实路径，避免递归扫描漏掉 Capacitor 的 Java 21 配置。
+$capacitorPackage = & node -p "require.resolve('@capacitor/android/package.json')"
+if ($LASTEXITCODE -ne 0) { Write-Error "Cannot locate @capacitor/android."; exit 1 }
+$gradleRoots = @($androidDir, (Split-Path -Parent $capacitorPackage))
 Get-ChildItem -Path $gradleRoots -Recurse -Filter "*.gradle" -File -ErrorAction SilentlyContinue | ForEach-Object {
     $txt = [System.IO.File]::ReadAllText($_.FullName)
     if ($txt.Contains("JavaVersion.VERSION_21")) {

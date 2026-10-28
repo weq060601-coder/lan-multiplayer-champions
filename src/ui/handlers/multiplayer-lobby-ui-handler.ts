@@ -68,10 +68,6 @@ export class MultiplayerLobbyUiHandler extends UiHandler {
     MultiplayerMode.COOP,
   ];
 
-  constructor() {
-    super(UiMode.MULTIPLAYER_LOBBY);
-  }
-
   public override setup(): void {
     const ui = this.getUi();
     const { width: canvasWidth, height: canvasHeight } = globalScene.scaledCanvas;

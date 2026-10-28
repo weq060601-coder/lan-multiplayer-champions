@@ -10,6 +10,7 @@ import {
   getValueReductionCandyCounts,
 } from "#balance/starters";
 import { allAbilities, allMoves } from "#data/data-lists";
+import { AbilityAttr } from "#enums/ability-attr";
 import { CandyUpgradeDisplayMode } from "#enums/candy-upgrade-display-mode";
 import { CandyUpgradeNotificationMode } from "#enums/candy-upgrade-notification-mode";
 import { ChallengeType } from "#enums/challenge-type";
@@ -17,6 +18,7 @@ import { Challenges } from "#enums/challenges";
 import { DexAttr } from "#enums/dex-attr";
 import { GameModes } from "#enums/game-modes";
 import type { MoveId } from "#enums/move-id";
+import { Nature } from "#enums/nature";
 import { Passive } from "#enums/passive";
 import { SpeciesFormKey } from "#enums/species-form-key";
 import type { SpeciesId } from "#enums/species-id";
@@ -73,10 +75,9 @@ export function isValueReductionAvailable(speciesId: number, gameData = globalSc
  */
 export function isSameSpeciesEggAvailable(speciesId: number, gameData = globalScene.gameData): boolean {
   const starterId = speciesDataRegistry.getStarter(speciesId);
-  const hatchCount = gameData.dexData[starterId].hatchedCount;
   return (
     gameData.starterData[starterId].candyCount
-    >= getSameSpeciesEggCandyCounts(speciesDataRegistry.getStarterCost(starterId), hatchCount)
+    >= getSameSpeciesEggCandyCounts(speciesDataRegistry.getStarterCost(starterId))
   );
 }
 
@@ -390,6 +391,30 @@ export function getStarterDexAttrPropsFromPreferences(
   };
 }
 
+function getStarterDefaultAbilityIndex(starterId: StarterSpeciesId): number {
+  const { starterDataEntry: starterData } = getStarterData(starterId);
+  const abilityAttr = starterData.abilityAttr;
+  const species = speciesDataRegistry.getSpecies(starterId);
+
+  if (abilityAttr & AbilityAttr.ABILITY_1) {
+    return 0;
+  }
+  if (!species.ability2 || abilityAttr & AbilityAttr.ABILITY_2) {
+    return 1;
+  }
+  return 2;
+}
+
+function getStarterDefaultNature(starterId: StarterSpeciesId): Nature {
+  const { dexEntry } = getStarterData(starterId);
+  for (let n = 0; n < 25; n++) {
+    if (dexEntry.natureAttr & (1 << (n + 1))) {
+      return n as Nature;
+    }
+  }
+  return Nature.HARDY;
+}
+
 /**
  * Convert starter preferences to {@linkcode SpeciesDetails} format.
  *
@@ -404,8 +429,8 @@ export function getStarterDetailsFromPreferences(
 ) {
   const { female, formIndex, shiny, variant } = getStarterDexAttrPropsFromPreferences(starterId, starterPreferences);
   const species = speciesDataRegistry.getSpecies(starterId);
-  const abilityIndex = starterPreferences.abilityIndex ?? globalScene.gameData.getStarterDefaultAbilityIndex(starterId);
-  const natureIndex = starterPreferences.nature ?? globalScene.gameData.getSpeciesDefaultNature(starterId);
+  const abilityIndex = starterPreferences.abilityIndex ?? getStarterDefaultAbilityIndex(starterId);
+  const natureIndex = starterPreferences.nature ?? getStarterDefaultNature(starterId);
   const teraType = starterPreferences.tera ?? species.type1;
 
   return { shiny, formIndex, female, variant, abilityIndex, natureIndex, teraType } satisfies DefinedSpeciesDetails;
@@ -494,6 +519,7 @@ export function getStarterMoves(starterId: StarterSpeciesId, formIndex: number):
   const { starterDataEntry } = getStarterData(starterId);
 
   const levelMoves = speciesDataRegistry.getLevelMoves(starterId, formIndex);
+  applyChallenges(ChallengeType.LEVEL_UP_MOVESET, speciesDataRegistry.getSpecies(starterId), levelMoves);
   for (const [level, moveId] of levelMoves) {
     if (level > 0 && level <= 5) {
       starterMoves.push(moveId);

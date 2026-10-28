@@ -110,6 +110,8 @@ export class Battle {
    */
   public failedRunAway = false;
 
+  public successfulRun = false;
+
   constructor(
     gameMode: GameMode,
     { waveIndex, battleType, trainer, mysteryEncounterType, double = false }: NewBattleResolvedProps,
@@ -189,17 +191,10 @@ export class Battle {
 
   addPostBattleLoot(enemyPokemon: EnemyPokemon): void {
     this.postBattleLoot.push(
-      ...globalScene
-        .findModifiers(
-          m => m.is("PokemonHeldItemModifier") && m.pokemonId === enemyPokemon.id && m.isTransferable,
-          false,
-        )
-        .map(i => {
-          const ret = i as PokemonHeldItemModifier;
-          //@ts-expect-error - this is awful to fix/change
-          ret.pokemonId = null;
-          return ret;
-        }),
+      ...(globalScene.findModifiers(
+        m => m.is("PokemonHeldItemModifier") && m.pokemonId === enemyPokemon.id && m.isTransferable,
+        false,
+      ) as PokemonHeldItemModifier[]),
     );
   }
 

@@ -162,6 +162,7 @@ export interface StarterDataEntry {
   passiveAttr: number;
   valueReduction: number;
   classicWinCount: number;
+  pity: [lastShiny: number, lastNewVariant: number];
 }
 
 export interface StarterData {

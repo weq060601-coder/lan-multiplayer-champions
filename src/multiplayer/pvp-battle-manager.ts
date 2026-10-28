@@ -348,7 +348,7 @@ export class PvpBattleManager {
             },
           },
         ];
-        globalScene.ui.setMode(UiMode.OPTION_SELECT, { options, noCancel: true });
+        globalScene.ui.setMode(UiMode.OPTION_SELECT, { options, blockCancelButton: true });
       }, null, true);
     });
   }

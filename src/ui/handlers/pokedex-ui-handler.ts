@@ -26,7 +26,7 @@ import { SettingKeyboard } from "#system/settings-keyboard";
 import type { DexEntry } from "#types/dex-data";
 import type { AllStarterPreferences, DexAttrProps, StarterPreferences } from "#types/save-data";
 import type { SpeciesDetails } from "#types/starter-select-types";
-import type { OptionSelectConfig } from "#types/ui-types";
+import type { ConfirmModeConfig } from "#types/ui-types";
 import { DropDown, DropDownLabel, DropDownOption, DropDownState, DropDownType, SortCriteria } from "#ui/dropdown";
 import { FilterBar } from "#ui/filter-bar";
 import { FilterText, FilterTextRow } from "#ui/filter-text";
@@ -41,7 +41,7 @@ import { argbFromRgba, rgbHexToRgba } from "#utils/color-utils";
 import { BooleanHolder, fixedInt, getLocalizedSpriteKey, padInt, randIntRange } from "#utils/common";
 import { loadStarterPreferences } from "#utils/data";
 import { enumValueToKey } from "#utils/enums";
-import { getDexNumber, getPokemonSpeciesForm, getPokerusStarters, getStarterColors } from "#utils/pokemon-utils";
+import { getDexNumber, getPokerusStarters, getStarterColors } from "#utils/pokemon-utils";
 import { toCamelCase } from "#utils/strings";
 import i18next from "i18next";
 
@@ -231,7 +231,6 @@ export class PokedexUiHandler extends MessageUiHandler {
 
   protected blockInput = false;
 
-  protected manageDataConfig: OptionSelectConfig;
   protected optionSelectText: Phaser.GameObjects.Text;
   protected scale = 0.1666666667;
 
@@ -265,10 +264,6 @@ export class PokedexUiHandler extends MessageUiHandler {
   private gameData: GameData;
   private exitCallback?: (() => void) | undefined;
   private blockOpenPage = false;
-
-  constructor() {
-    super(UiMode.POKEDEX);
-  }
 
   setup() {
     const ui = this.getUi();
@@ -1228,7 +1223,7 @@ export class PokedexUiHandler extends MessageUiHandler {
           }
           break;
         case Button.DOWN:
-          if (currentRow < numOfRows - 1 && this.cursor + 9 < this.filteredPokemonData.length) {
+          if (currentRow < numOfRows - 1 && this.scrollCursor * 9 + this.cursor + 9 < this.filteredPokemonData.length) {
             // not last row
             if (currentRow - this.scrollCursor === 8) {
               // last row of visible pokemon
@@ -1364,8 +1359,7 @@ export class PokedexUiHandler extends MessageUiHandler {
     for (const species of speciesDataRegistry.getAllSpecies()) {
       const starterId = speciesDataRegistry.getStarter(species.speciesId);
 
-      const currentDexAttr = this.getCurrentDexProps(species.speciesId);
-      const props = this.getSanitizedProps(this.gameData.getDexAttrProps(currentDexAttr));
+      const props = this.getSanitizedProps(this.getCurrentDexProps(species.speciesId));
 
       const data: ContainerData = {
         species,
@@ -1987,8 +1981,7 @@ export class PokedexUiHandler extends MessageUiHandler {
     this.formTrayContainer.setY(goUp ? boxPos.y - this.trayBg.height : boxPos.y + 17);
 
     const dexEntry = this.gameData.dexData[species.speciesId];
-    const dexAttr = this.getCurrentDexProps(species.speciesId);
-    const props = this.getSanitizedProps(this.gameData.getDexAttrProps(dexAttr));
+    const props = this.getSanitizedProps(this.getCurrentDexProps(species.speciesId));
 
     this.trayContainers = [];
     const isFormSeen = this.isSeen(species, dexEntry);
@@ -2090,8 +2083,7 @@ export class PokedexUiHandler extends MessageUiHandler {
     const container = this.pokemonContainers[cursor];
     if (container) {
       const lastSpeciesIcon = container.icon;
-      const dexAttr = this.getCurrentDexProps(container.species.speciesId);
-      const props = this.getSanitizedProps(this.gameData.getDexAttrProps(dexAttr));
+      const props = this.getSanitizedProps(this.getCurrentDexProps(container.species.speciesId));
       this.checkIconId(lastSpeciesIcon, container.species, props.female, props.formIndex, props.shiny, props.variant);
       this.iconAnimHandler.addOrUpdate(lastSpeciesIcon, PokemonIconAnimMode.NONE);
       // Resume the animation for the previously selected species
@@ -2131,7 +2123,7 @@ export class PokedexUiHandler extends MessageUiHandler {
       if (this.speciesStarterDexEntry?.caughtAttr || settings.general.dexForDevs) {
         this.startIconAnimation(this.cursor);
 
-        const speciesForm = getPokemonSpeciesForm(species.speciesId, 0);
+        const speciesForm = speciesDataRegistry.getPokemonSpeciesForm(species.speciesId, 0);
         this.setTypeIcons(speciesForm.type1, speciesForm.type2);
 
         this.setSpeciesDetails(species, {});
@@ -2196,7 +2188,7 @@ export class PokedexUiHandler extends MessageUiHandler {
         & species.getFullUnlocksData();
 
       if (caughtAttr) {
-        const props = this.getSanitizedProps(this.gameData.getDexAttrProps(this.getCurrentDexProps(species.speciesId)));
+        const props = this.getSanitizedProps(this.getCurrentDexProps(species.speciesId));
 
         if (shiny === undefined) {
           shiny = props.shiny;
@@ -2256,7 +2248,7 @@ export class PokedexUiHandler extends MessageUiHandler {
       }
 
       if (isFormCaught || isFormSeen || settings.general.dexForDevs) {
-        const speciesForm = getPokemonSpeciesForm(species.speciesId, formIndex ?? 0); // TODO: always selecting the first form
+        const speciesForm = speciesDataRegistry.getPokemonSpeciesForm(species.speciesId, formIndex ?? 0); // TODO: always selecting the first form
         this.setTypeIcons(speciesForm.type1, speciesForm.type2);
       } else {
         this.setTypeIcons(null, null);
@@ -2327,87 +2319,53 @@ export class PokedexUiHandler extends MessageUiHandler {
     this.blockInput = true;
     const ui = this.getUi();
 
-    const cancel = () => {
-      ui.setMode(UiMode.POKEDEX, "refresh");
-      this.clearText();
-      this.blockInput = false;
+    const confirmExitConfig: ConfirmModeConfig = {
+      yesHandler: () => {
+        ui.setMode(UiMode.POKEDEX, "refresh");
+        this.clearText();
+        this.clear();
+        ui.revertMode();
+      },
+      noHandler: () => {
+        ui.setMode(UiMode.POKEDEX, "refresh");
+        this.clearText();
+        this.blockInput = false;
+      },
+      yOffset: 29,
     };
     ui.showText(i18next.t("pokedexUiHandler:confirmExit"), null, () => {
-      ui.setModeWithoutClear(
-        UiMode.CONFIRM,
-        () => {
-          ui.setMode(UiMode.POKEDEX, "refresh");
-          this.clearText();
-          this.clear();
-          ui.revertMode();
-        },
-        cancel,
-        null,
-        null,
-        19,
-      );
+      ui.setModeWithoutClear(UiMode.CONFIRM, confirmExitConfig);
     });
 
     return true;
   }
 
   /**
-   * Creates a temporary dex attr props that will be used to
-   * display the correct shiny, variant, and form based on the AllStarterPreferences
+   * Creates a temporary dex attr props that will be used to display
+   * the correct shiny, variant, and form based on `this.starterPreferences`
    *
-   * @param speciesId the id of the species to get props for
+   * @param speciesId - The id of the species to get props for
    * @returns the dex props
    */
-  getCurrentDexProps(speciesId: number): bigint {
-    let props = 0n;
-    const species = speciesDataRegistry.getSpecies(speciesId);
-    const caughtAttr =
-      this.gameData.dexData[speciesId].caughtAttr
-      & this.gameData.dexData[speciesDataRegistry.getStarter(speciesId)].caughtAttr
-      & species.getFullUnlocksData();
+  private getCurrentDexProps(speciesId: SpeciesId): DexAttrProps {
+    const props: DexAttrProps = settings.general.dexForDevs
+      ? { female: speciesDataRegistry.getSpecies(speciesId).malePercent === 0, formIndex: 0, shiny: false, variant: 0 }
+      : globalScene.gameData.getSpeciesDefaultDexAttrProps(speciesId, false);
 
-    /*  this checks the gender of the pokemon; this works by checking a) that the starter preferences for the species exist, and if so, is it female. If so, it'll add DexAttr.FEMALE to our temp props
-     *  It then checks b) if the caughtAttr for the pokemon is female and NOT male - this means that the ONLY gender we've gotten is female, and we need to add DexAttr.FEMALE to our temp props
-     *  If neither of these pass, we add DexAttr.MALE to our temp props
-     */
-    if (
-      this.starterPreferences[speciesId]?.female
-      || ((caughtAttr & DexAttr.FEMALE) > 0n && (caughtAttr & DexAttr.MALE) === 0n)
-    ) {
-      props += DexAttr.FEMALE;
-    } else {
-      props += DexAttr.MALE;
+    if (this.starterPreferences[speciesId]?.female !== undefined) {
+      props.female = this.starterPreferences[speciesId].female;
     }
-    /* This part is very similar to above, but instead of for gender, it checks for shiny within starter preferences.
-     * If they're not there, it enables shiny state by default if any shiny was caught
-     */
-    if (
-      this.starterPreferences[speciesId]?.shiny
-      || ((caughtAttr & DexAttr.SHINY) > 0n && this.starterPreferences[speciesId]?.shiny !== false)
-    ) {
-      props += DexAttr.SHINY;
-      if (this.starterPreferences[speciesId]?.variant !== undefined) {
-        props += BigInt(Math.pow(2, this.starterPreferences[speciesId]?.variant)) * DexAttr.DEFAULT_VARIANT;
-      } else if ((caughtAttr & DexAttr.VARIANT_3) > 0) {
-        /*  This calculates the correct variant if there's no starter preferences for it.
-         *  This gets the highest tier variant that you've caught and adds it to the temp props
-         */
-        props += DexAttr.VARIANT_3;
-      } else if ((caughtAttr & DexAttr.VARIANT_2) > 0) {
-        props += DexAttr.VARIANT_2;
-      } else {
-        props += DexAttr.DEFAULT_VARIANT;
-      }
-    } else {
-      props += DexAttr.NON_SHINY;
-      props += DexAttr.DEFAULT_VARIANT; // we add the default variant here because non shiny versions are listed as default variant
+
+    if (this.starterPreferences[speciesId]?.shiny !== undefined) {
+      props.shiny = this.starterPreferences[speciesId].shiny;
     }
-    if (this.starterPreferences[speciesId]?.formIndex) {
-      // this checks for the form of the pokemon
-      props += BigInt(Math.pow(2, this.starterPreferences[speciesId]?.formIndex)) * DexAttr.DEFAULT_FORM;
-    } else {
-      // Get the first unlocked form
-      props += this.gameData.getFormAttr(this.gameData.getFormIndex(caughtAttr));
+
+    if (this.starterPreferences[speciesId]?.variant !== undefined) {
+      props.variant = this.starterPreferences[speciesId].variant;
+    }
+
+    if (this.starterPreferences[speciesId]?.formIndex !== undefined) {
+      props.formIndex = this.starterPreferences[speciesId].formIndex;
     }
 
     return props;

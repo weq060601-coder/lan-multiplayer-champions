@@ -11,8 +11,8 @@ android {
         //    以「已安装同版本」为由拒绝覆盖安装，报一句没头没尾的「应用未安装」。
         //    versionName 只是给人看的，versionCode 才是安装器比的那个数。
         //    注意：cap sync 不会重写本文件（它只动 capacitor.build.gradle），改了不会被冲掉。
-        versionCode 27
-        versionName "1.26"
+        versionCode 28
+        versionName "1.27"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
