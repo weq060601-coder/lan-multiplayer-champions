@@ -42,7 +42,7 @@ PC 提供局域网启动器，Android 提供源码工程，支持跨端连接路
 ## 先下载，再开一局
 
 - 当前版本分支：`codex/lan-multiplayer`。
-- 中文翻译仓库：[weq060601-coder/pokerogue-locales](https://github.com/weq060601-coder/pokerogue-locales/tree/codex/zh-hans-full)，主仓库通过子模块固定到对应提交。
+- 中文翻译已直接内置在主仓库的 `locales/zh-Hans/`，无需另行下载中文仓库；英文回退和其他语言也保留在 `locales/` 中。
 - 游戏资源仍引用官方 `pokerogue-assets` 子模块；上游署名与许可证保留在下方及各源文件中。
 - Git 仓库保存源码；APK 作为 Releases 附件单独发布，个人存档、`node_modules` 和 `dist` 等本地文件不在源码仓库中。
 
@@ -69,7 +69,9 @@ node scripts/launcher.mjs
 
 Windows 完成构建后也可以运行根目录的 `双击启动游戏.bat`。源码调试使用 `pnpm start:dev`；局域网联机使用上面的启动器，启动器同时提供本地信令与发现服务。
 
-请使用 `git clone --recurse-submodules`，GitHub 的普通源码 ZIP 不包含子模块内容。已有克隆可执行 `git submodule update --init --recursive` 获取本版本固定的资源与翻译；更新上游时请审查翻译差异，避免覆盖本地精翻。
+请使用 `git clone --recurse-submodules` 获取游戏资源。GitHub 的普通源码 ZIP 已包含中文及其他语言，但仍不包含 `assets` 资源子模块。已有克隆可执行 `git submodule update --init --recursive assets` 获取本版本固定的资源；翻译直接随主仓库提交更新，合并上游时请审查差异，避免覆盖本地精翻。
+
+翻译内置版本来自原中文仓库提交 `bafb4eecb4e36ec0805cb23df15732ae631ade8b`，保留原译文、上游署名及 `locales/LICENSE`。后续翻译修改直接提交到本仓库。执行 `pnpm test:locales` 可检查 JSON、953 条中文招式介绍，以及翻译已脱离子模块；构建后执行 `pnpm test:locales -- --dist` 可核对打包译文与源码一致。
 
 Android 当前工程版本为 **1.27**，现成 APK 见上方发布页，自行打包步骤见下方折叠说明。
 

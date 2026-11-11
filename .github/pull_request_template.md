@@ -107,8 +107,8 @@ you can strike it out with the `~` character to mark them as not applicable.
   - [ ] I have made sure that any UI changes work for both the default and legacy UI themes (if applicable)
 
 Are there any localization additions or changes? If so:
-- [ ] I have created an associated PR on the [locales](https://github.com/pagefaultgames/pokerogue-locales) repository
-  - If so, include a link to the PR here: _____
+- [ ] I have included the translation changes in this PR under `locales/` (Simplified Chinese: `locales/zh-Hans/`)
+- [ ] `pnpm test:locales` passes
 - [ ] I have contacted the Translation Team on Discord for proofreading/translation (contacting the devs in #pokerogue-dev is sufficient, we can then forward the PR to the TL team)
 
 Does this require any additions or changes to in-game assets? If so:

@@ -1,0 +1,30 @@
+{
+  "stench": {
+    "name": "Pis Koku"
+  },
+  "drizzle": {
+    "name": "Çiseleme"
+  },
+  "speedBoost": {
+    "name": "Hız Takviyesi"
+  },
+  "sturdy": {
+    "name": "Sağlam"
+  },
+  "damp": {
+    "name": "Nemli"
+  },
+  "static": {
+    "name": "Statik"
+  },
+  "insomnia": {
+    "name": "Uykusuz"
+  },
+  "colorChange": {
+    "name": "Renk Değişimi"
+  },
+  "hugePower": {
+    "name": "Dev Güç",
+    "description": "Pokémon’un fiziksel saldırılarının gücünü ikiye katlar."
+  }
+}
