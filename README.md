@@ -31,6 +31,47 @@ Windows 完成构建后也可以运行根目录的 `双击启动游戏.bat`。�
 
 Android 构建入口为 `scripts/build-apk.ps1`，需另行配置本机 JDK 与 Android SDK 路径。当前 Android 工程版本为 **1.27**。详细实现及真机验收记录见 [交接文档.md](./交接文档.md)。
 
+## 局域网联机怎么用
+
+1. 两台设备连接同一路由器或 Wi-Fi。电脑运行上面的启动器，保持启动器窗口开启；终端会显示本机和局域网访问地址，以实际输出端口为准。
+2. 房主在游戏标题菜单进入「局域网联机」，选择「创建房间」，设置玩法并确认创建。
+3. 客机进入联机大厅，选择「自动搜索局域网主机」；也可以在「加入房间」中按界面提示填写房间码和连接信息。电脑当房主、Android App 当客机时，优先使用自动搜索。
+4. 双方进入同一房间后选择「准备就绪」，再由房主选择「启动游戏」。
+5. 手机浏览器体验电脑提供的游戏时，打开启动器打印的局域网网址，而不是手机自己的 `localhost`。
+
+搜索不到主机时，检查是否误连访客 Wi-Fi、路由器是否开启客户端/AP 隔离，以及 Windows 防火墙是否允许 Node.js 的专用网络访问。启动器使用实际 HTTP 端口和 UDP **41234**（发现）/ **41235**（STUN）；仅按局域网需求配置访问，无需开放公网端口。
+
+三组 Node 自检已通过；这不代表所有手机、路由器及跨端玩法都完成真机验收，具体限制见交接文档。
+
+## Android 源码打包
+
+本仓库没有发布可直接安装的 APK。自行构建需要：
+
+1. 先完成上面的源码克隆和 `pnpm install --frozen-lockfile`。
+2. 准备 JDK 17、Android SDK Platform 35 和对应构建工具。工程当前 `compileSdkVersion` 为 35。
+3. 编辑 `scripts/build-apk.ps1`：将 `$jdkDir` 的本机旧路径替换为自己的 JDK 目录；SDK 默认读取 `$env:LOCALAPPDATA\Android\Sdk`，自定义安装目录时也要调整 `$sdkDir`。
+4. 在项目根目录执行 `powershell -ExecutionPolicy Bypass -File .\scripts\build-apk.ps1`。脚本依次构建网页、同步 Capacitor 和执行 Gradle，生成根目录的 `PokeRogue-LAN-Multiplayer.apk`。
+
+该脚本生成调试 APK，用于本地测试，不是正式签名发行包。SDK/JDK 需提前准备，脚本不负责安装这些环境。
+
+## 保留的联机自检
+
+以下三份测试分别验证信令转发、局域网广播发现和启动器集成；用途不同，不是重复导出或构建产物：
+
+```powershell
+node scripts/test-signal-server.mjs
+node scripts/test-lan-discovery.mjs
+node scripts/test-launcher-signal.mjs
+```
+
+`test/` 目录保留上游的游戏测试。本分支没有额外新增该目录下的测试文件；旧翻译导出和 Android 默认示例测试已从当前版本移除，但完整 Git 历史仍记录此前提交。
+
+## 游戏资源与版权边界
+
+主仓库通过 `assets` 子模块记录上游游戏资源仓库的地址及提交号，没有将该目录的角色贴图、音频和字体重新复制进当前主仓库文件树。Android 工程保留封装工具默认图标和启动图；上游网站图标及 README 的外部 Logo 引用也仍保留。
+
+这是保留上游历史的 fork，不是经过全历史资源剥离的全新纯代码仓库。资源分仓、只发源码或注明上游许可，均不构成对宝可梦相关第三方版权与商标的使用授权，也不保证免于投诉或下架。上游资源是否公开可访问与是否获得权利人授权是不同问题；GitHub 的 [DMCA 政策](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy)也适用于 fork。
+
 ---
 
 ## 上游项目说明
