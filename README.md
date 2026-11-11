@@ -44,7 +44,16 @@ PC 提供局域网启动器，Android 提供源码工程，支持跨端连接路
 - 当前版本分支：`codex/lan-multiplayer`。
 - 中文翻译仓库：[weq060601-coder/pokerogue-locales](https://github.com/weq060601-coder/pokerogue-locales/tree/codex/zh-hans-full)，主仓库通过子模块固定到对应提交。
 - 游戏资源仍引用官方 `pokerogue-assets` 子模块；上游署名与许可证保留在下方及各源文件中。
-- 发布内容为源码；APK、个人存档、`node_modules` 和 `dist` 等本地文件不在源码仓库中。
+- Git 仓库保存源码；APK 作为 Releases 附件单独发布，个人存档、`node_modules` 和 `dist` 等本地文件不在源码仓库中。
+
+### Android：下载 APK 直接安装
+
+- [Android 1.27 测试版发布页](https://github.com/weq060601-coder/lan-multiplayer-champions/releases/tag/lan-v1.27)
+- [直接下载 APK](https://github.com/weq060601-coder/lan-multiplayer-champions/releases/download/lan-v1.27/lan-multiplayer-champions-v1.27.apk)（约 **660 MiB**）
+
+APK 已内置网页、游戏资源和中文翻译，无需在手机上克隆源码或安装 Node.js。下载后按系统提示允许对应来源安装应用；与朋友连接同一 Wi-Fi 后，在游戏标题菜单进入「局域网联机」。
+
+这是 **2026-10-28 构建的现有 1.27 调试签名包**，安装后名称仍为「PokéRogue 局域网联机版」，本次没有重新打包。旧 Android/WebView 存在兼容性限制；工程最低 API 配置不代表所有旧手机都已通过验收。发布页附有 SHA-256 校验文件。
 
 ### 下载与运行
 
@@ -62,7 +71,7 @@ Windows 完成构建后也可以运行根目录的 `双击启动游戏.bat`。�
 
 请使用 `git clone --recurse-submodules`，GitHub 的普通源码 ZIP 不包含子模块内容。已有克隆可执行 `git submodule update --init --recursive` 获取本版本固定的资源与翻译；更新上游时请审查翻译差异，避免覆盖本地精翻。
 
-Android 当前工程版本为 **1.27**，本仓库发布源码而非现成 APK，打包步骤见下方折叠说明。
+Android 当前工程版本为 **1.27**，现成 APK 见上方发布页，自行打包步骤见下方折叠说明。
 
 ## 局域网联机怎么用
 
@@ -81,7 +90,7 @@ Android 当前工程版本为 **1.27**，本仓库发布源码而非现成 APK�
 
 ### Android 源码打包
 
-本仓库没有发布可直接安装的 APK。自行构建需要：
+现成 APK 见上方 Releases；需要自己修改并构建时：
 
 1. 先完成上面的源码克隆和 `pnpm install --frozen-lockfile`。
 2. 准备 JDK 17、Android SDK Platform 35 和对应构建工具。工程当前 `compileSdkVersion` 为 35。
@@ -112,6 +121,8 @@ node scripts/test-launcher-signal.mjs
 ## 游戏资源与版权边界
 
 主仓库通过 `assets` 子模块记录上游游戏资源仓库的地址及提交号，没有将该目录的角色贴图、音频和字体重新复制进当前主仓库文件树。Android 工程保留封装工具默认图标和启动图；上游网站图标及 README 的外部 Logo 引用也仍保留。
+
+Releases 中的 APK 为完整离线安装包，包含游戏贴图、音频、字体及翻译；这些资源位于安装包中，并未作为普通文件加入 Git 源码历史。
 
 这是保留上游历史的 fork，不是经过全历史资源剥离的全新纯代码仓库。资源分仓、只发源码、改名或注明上游许可，均不构成对宝可梦相关第三方版权与商标的使用授权，也不保证免于投诉或下架。上游资源是否公开可访问与是否获得权利人授权是不同问题；GitHub 的 [DMCA 政策](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy)也适用于 fork。
 
