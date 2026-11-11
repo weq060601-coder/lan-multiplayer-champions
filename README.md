@@ -4,6 +4,37 @@ SPDX-FileCopyrightText: 2024-2026 Pagefault Games
 SPDX-License-Identifier: CC-BY-NC-SA-4.0
 -->
 
+# PokéRogue 局域网联机与中文精翻版
+
+本仓库保存基于官方 beta **1.12.2.2** 的局域网联机版本，包含 PC 启动器、Android 工程，以及竞速、灵魂同调、PVP 和双人合作玩法。简体中文保留本地精翻，并合入官方翻译更新，包含 **953 条完整招式介绍**。
+
+- 当前版本分支：`codex/lan-multiplayer`。
+- 中文翻译仓库：[weq060601-coder/pokerogue-locales](https://github.com/weq060601-coder/pokerogue-locales/tree/codex/zh-hans-full)，主仓库通过子模块固定到对应提交。
+- 游戏资源仍引用官方 `pokerogue-assets` 子模块；上游署名与许可证保留在下方及各源文件中。
+- 发布内容为源码；APK、个人存档、`node_modules` 和 `dist` 等本地文件不在源码仓库中。
+
+## 下载与运行
+
+需要 Node.js **24.9.0 或更新版本**、pnpm **10.34.5** 和 Git。资源子模块较大，请预留下载空间。
+
+```powershell
+git clone --depth 1 --branch codex/lan-multiplayer --recurse-submodules --shallow-submodules https://github.com/weq060601-coder/pokerogue-lan-multiplayer.git
+cd pokerogue-lan-multiplayer
+pnpm install --frozen-lockfile
+pnpm build:app
+node scripts/launcher.mjs
+```
+
+Windows 完成构建后也可以运行根目录的 `双击启动游戏.bat`。源码调试使用 `pnpm start:dev`；局域网联机使用上面的启动器，启动器同时提供本地信令与发现服务。
+
+请使用 `git clone --recurse-submodules`，GitHub 的普通源码 ZIP 不包含子模块内容。已有克隆可执行 `git submodule update --init --recursive` 获取本版本固定的资源与翻译；更新上游时请审查翻译差异，避免覆盖本地精翻。
+
+Android 构建入口为 `scripts/build-apk.ps1`，需另行配置本机 JDK 与 Android SDK 路径。当前 Android 工程版本为 **1.27**。详细实现及真机验收记录见 [交接文档.md](./交接文档.md)。
+
+---
+
+## 上游项目说明
+
 <div align="center"><picture><img src="https://github.com/pagefaultgames/pokerogue-assets/blob/beta/images/logo.png?raw=true" width="300" alt="PokéRogue"></picture>
 
 [![Discord Static Badge](https://img.shields.io/badge/Community_Discord-blurple?style=flat&logo=discord&logoSize=auto&labelColor=white&color=5865F2)](https://discord.gg/pokerogue)
