@@ -199,7 +199,7 @@ function startServer(port = 8000) {
       });
       console.log("");
       // 安卓 5.x / 6.x 装不了本项目的 APK（Capacitor 引用了 API 24 的框架类，一进去就闪退，
-      // 见交接文档缺陷 8）。但那些机器用 Firefox 143 打开上面的网址是可以玩的 ——
+      // 旧系统 WebView 兼容性问题）。但那些机器用 Firefox 143 打开上面的网址是可以玩的 ——
       // Firefox 自带 Gecko 引擎，不受系统那个 2014 年的老 WebView 限制。
       console.log("  🦊 安卓 5.x / 6.x 的老设备：装不了 APK，请用 Firefox 143 打开上面网址。");
       console.log("     （系统自带浏览器太老跑不了；Firefox 143 是支持安卓 5.0~7.1 的最后一版）");

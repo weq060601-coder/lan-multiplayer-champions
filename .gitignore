@@ -43,6 +43,8 @@ coverage
 # Local Documentation
 /typedoc
 /dependency-graph.svg
+/HANDOFF.md
+/交接文档.md
 
 # Script outputs
 *.csv
